@@ -1,0 +1,22 @@
+[package]
+name = "solana-grpc-client"
+version.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytes = { workspace = true }
+futures = { workspace = true }
+thiserror ={ workspace = true }
+tonic = { workspace = true, features = ["tls", "tls-roots"] }
+tonic-health = { workspace = true }
+solana-grpc-proto = { workspace = true, features = ["tonic", "tonic-compression"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true
