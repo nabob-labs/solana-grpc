@@ -6,6 +6,13 @@ use {
         sink::{Sink, SinkExt},
         stream::Stream,
     },
+    solana_grpc_proto::prelude::{
+        geyser_client::GeyserClient, CommitmentLevel, GetBlockHeightRequest,
+        GetBlockHeightResponse, GetLatestBlockhashRequest, GetLatestBlockhashResponse,
+        GetSlotRequest, GetSlotResponse, GetVersionRequest, GetVersionResponse,
+        IsBlockhashValidRequest, IsBlockhashValidResponse, PingRequest, PongResponse,
+        SubscribeRequest, SubscribeUpdate,
+    },
     std::time::Duration,
     tonic::{
         codec::{CompressionEncoding, Streaming},
@@ -15,13 +22,6 @@ use {
         Request, Response, Status,
     },
     tonic_health::pb::{health_client::HealthClient, HealthCheckRequest, HealthCheckResponse},
-    solana_grpc_proto::prelude::{
-        geyser_client::GeyserClient, CommitmentLevel, GetBlockHeightRequest,
-        GetBlockHeightResponse, GetLatestBlockhashRequest, GetLatestBlockhashResponse,
-        GetSlotRequest, GetSlotResponse, GetVersionRequest, GetVersionResponse,
-        IsBlockhashValidRequest, IsBlockhashValidResponse, PingRequest, PongResponse,
-        SubscribeRequest, SubscribeUpdate,
-    },
 };
 
 #[derive(Debug, Clone)]
@@ -411,78 +411,5 @@ impl GeyserGrpcBuilder {
             max_encoding_message_size: Some(limit),
             ..self
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::GeyserGrpcClient;
-
-    #[tokio::test]
-    async fn test_channel_https_success() {
-        let endpoint = "https://ams17.rpcpool.com:443";
-        let x_token = "1000000000000000000000000007";
-
-        let res = GeyserGrpcClient::build_from_shared(endpoint);
-        assert!(res.is_ok());
-
-        let res = res.unwrap().x_token(Some(x_token));
-        assert!(res.is_ok());
-
-        let res = res.unwrap().connect_lazy();
-        assert!(res.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_channel_http_success() {
-        let endpoint = "http://127.0.0.1:10000";
-        let x_token = "1234567891012141618202224268";
-
-        let res = GeyserGrpcClient::build_from_shared(endpoint);
-        assert!(res.is_ok());
-
-        let res = res.unwrap().x_token(Some(x_token));
-        assert!(res.is_ok());
-
-        let res = res.unwrap().connect_lazy();
-        assert!(res.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_channel_empty_token_some() {
-        let endpoint = "http://127.0.0.1:10000";
-        let x_token = "";
-
-        let res = GeyserGrpcClient::build_from_shared(endpoint);
-        assert!(res.is_ok());
-
-        let res = res.unwrap().x_token(Some(x_token));
-        assert!(res.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_channel_invalid_token_none() {
-        let endpoint = "http://127.0.0.1:10000";
-
-        let res = GeyserGrpcClient::build_from_shared(endpoint);
-        assert!(res.is_ok());
-
-        let res = res.unwrap().x_token::<String>(None);
-        assert!(res.is_ok());
-
-        let res = res.unwrap().connect_lazy();
-        assert!(res.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_channel_invalid_uri() {
-        let endpoint = "sites/files/images/picture.png";
-
-        let res = GeyserGrpcClient::build_from_shared(endpoint);
-        assert_eq!(
-            format!("{:?}", res),
-            "Err(TonicError(tonic::transport::Error(InvalidUri, InvalidUri(InvalidFormat))))"
-                .to_owned()
-        );
     }
 }

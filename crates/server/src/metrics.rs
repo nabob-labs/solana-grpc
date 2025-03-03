@@ -79,7 +79,7 @@ pub mod highway {
         static ref CLUSTER_NODES_TOTAL: IntGauge = IntGauge::new("cluster_nodes_total", "Total number of cluster nodes from gossip").unwrap();
         static ref CLUSTER_LEADERS_SCHEDULE_SIZE: IntGauge = IntGauge::new("cluster_leaders_schedule_size", "Total number of leaders in local schedule").unwrap();
         static ref CLUSTER_IDENTITY_STAKE: IntGaugeVec = IntGaugeVec::new(
-            Opts::new("cluster_identity_stake", "highway identity stake information"),
+            Opts::new("cluster_identity_stake", "Highway identity stake information"),
             &["kind"]
         ).unwrap();
 
@@ -117,7 +117,7 @@ pub mod highway {
         ).unwrap();
 
         static ref FORWADED_TRANSACTION_LATENCY: HistogramVec = HistogramVec::new(
-             HistogramOpts::new("forward_latency", "Latency of transactions forwarded from highway-gateway to a highway instance")
+             HistogramOpts::new("forward_latency", "Latency of transactions forwarded from highway-gateway to a Highway instance")
             .buckets(vec![ //0ms -> 10s
                 0.0, 50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 350.0,
                 400.0, 450.0, 500.0, 550.0, 600.0, 650.0, 700.0,750.0,
@@ -382,7 +382,7 @@ pub mod highway {
         STS_TPU_BLOCKLISTED_TOTAL.inc_by(blocklisted as u64)
     }
 
-    pub fn quic_set_indetity(identity: Pubkey) {
+    pub fn quic_set_identity(identity: Pubkey) {
         QUIC_IDENTITY.reset();
         QUIC_IDENTITY
             .with_label_values(&[&identity.to_string()])
@@ -390,7 +390,7 @@ pub mod highway {
         *QUIC_IDENTITY_VALUE.lock().unwrap() = Some(identity);
     }
 
-    pub fn quic_set_indetity_expected(identity: Pubkey) {
+    pub fn quic_set_identity_expected(identity: Pubkey) {
         QUIC_IDENTITY_EXPECTED.reset();
         QUIC_IDENTITY_EXPECTED
             .with_label_values(&[&identity.to_string()])

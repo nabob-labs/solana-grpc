@@ -7,6 +7,15 @@ use {
         nonblocking::rpc_client::RpcClient,
         rpc_config::{RpcBlockConfig, RpcSendTransactionConfig},
     },
+    solana_grpc_server::{
+        grpc_highway::Payload,
+        proto::highway::{
+            highway_gateway_client::HighwayGatewayClient,
+            publish_request::Message as PublishMessage, PublishRequest, PublishResponse,
+            PublishTransaction,
+        },
+        setup_tracing,
+    },
     solana_sdk::{
         commitment_config::{CommitmentConfig, CommitmentLevel},
         compute_budget::ComputeBudgetInstruction,
@@ -36,14 +45,6 @@ use {
         Response, Streaming,
     },
     tracing::{error, info},
-    solana_grpc_server::{
-        grpc_highway::Payload,
-        proto::highway::{
-            highway_gateway_client::HighwayGatewayClient, publish_request::Message as PublishMessage,
-            PublishRequest, PublishResponse, PublishTransaction,
-        },
-        setup_tracing,
-    },
 };
 
 #[derive(Debug, Clone, Parser)]
@@ -121,7 +122,7 @@ impl Config {
 enum ConfigOutput {
     /// Highway-like endpoint for sending generated transactions
     Highway { highway: String },
-    /// Highway-gateway details
+    /// highway-gateway details
     HighwayGateway { gateway: String },
 }
 

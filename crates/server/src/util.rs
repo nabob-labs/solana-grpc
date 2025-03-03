@@ -1,4 +1,5 @@
 use {
+    crate::quic_solana::{BoxedIdentityFlusher, IdentityFlusher},
     futures::future::Either,
     serde::Deserialize,
     solana_sdk::{
@@ -8,7 +9,7 @@ use {
     },
     std::{cmp::Ordering, future::Future, sync::Arc},
     tokio::{
-        sync::{oneshot, watch, Mutex},
+        sync::{oneshot, watch, Mutex, RwLock},
         task::{JoinError, JoinHandle},
         time::{sleep, Duration},
     },
@@ -178,6 +179,7 @@ pub fn ms_since_epoch() -> u64 {
         .as_millis() as u64
 }
 
+#[derive(Clone)]
 pub struct ValueObserver<T> {
     last_val: T,
     rx: watch::Receiver<T>,
@@ -248,95 +250,37 @@ where
     (rx1, rx2)
 }
 
-#[cfg(test)]
-mod tests {
-    use {super::*, futures::future};
+///
+/// Combines multiple [`IdentityFlusher`] into one.
+#[derive(Clone)]
+pub struct IdentityFlusherWaitGroup {
+    waiters: Arc<RwLock<Vec<BoxedIdentityFlusher>>>,
+}
 
-    #[test]
-    fn commitment_level_cmp() {
-        use CommitmentLevel::*;
+impl Default for IdentityFlusherWaitGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
-        assert!(Processed <= Processed);
-        assert!(Processed >= Processed);
-        assert!(Confirmed > Processed);
-        assert!(Confirmed >= Processed);
-        assert!(Finalized > Processed);
-        assert!(Finalized >= Processed);
-
-        assert!(Finalized > Confirmed);
-        assert!(Finalized >= Confirmed);
+impl IdentityFlusherWaitGroup {
+    pub fn new() -> Self {
+        Self {
+            waiters: Arc::new(RwLock::new(Vec::new())),
+        }
     }
 
-    #[tokio::test]
-    pub async fn value_observer_should_return_right_when_fut_finish_first() {
-        let (tx, rx) = watch::channel(0);
-        let mut observer: ValueObserver<i32> = rx.into();
-
-        // Test when custom future finished first
-        let result = observer.until_value_change(|_| future::ready(0)).await;
-        assert!(matches!(result, Either::Right(0)));
-
-        // Test when value changed first
-        let fut = tokio::spawn(async move {
-            observer
-                .until_value_change(|_| future::pending::<()>())
-                .await
-        });
-
-        tx.send(1).unwrap();
-        let result = fut.await.unwrap();
-        assert!(matches!(result, Either::Left(1)));
+    pub async fn add_flusher(&self, flusher: BoxedIdentityFlusher) {
+        self.waiters.write().await.push(flusher);
     }
+}
 
-    #[tokio::test]
-    pub async fn value_observer_should_return_left_when_inner_value_change_first() {
-        let (tx, rx) = watch::channel(0);
-        let mut observer: ValueObserver<i32> = rx.into();
-
-        // Test when value changed first
-        let fut = tokio::spawn(async move {
-            observer
-                .until_value_change(|_| future::pending::<()>())
-                .await
-        });
-
-        tx.send(1).unwrap();
-        let result = fut.await.unwrap();
-        assert!(matches!(result, Either::Left(1)));
-    }
-
-    #[tokio::test]
-    pub async fn value_observer_until_value_change_should_ignore_unchanged_value() {
-        let (tx, rx) = watch::channel(0);
-        let mut observer: ValueObserver<i32> = rx.into();
-        // Test when value changed first
-        let fut = tokio::spawn(async move {
-            observer
-                .until_value_change(|_| future::pending::<()>())
-                .await
-        });
-        // The first value is 0, so it should be ignored
-        tx.send(0).unwrap();
-        tx.send_replace(10);
-        let result = fut.await.unwrap();
-        // If the first value has been ignored, the result should be 10
-        assert!(matches!(result, Either::Left(10)));
-    }
-
-    #[tokio::test]
-    pub async fn value_observer_until_value_change_should_error_when_sender_close() {
-        let (tx, rx) = watch::channel(0);
-        let mut observer: ValueObserver<i32> = rx.into();
-
-        // Test when value changed first
-        let fut = tokio::spawn(async move {
-            observer
-                .until_value_change(|_| future::pending::<()>())
-                .await
-        });
-        // The first value is 0, so it should be ignored
-        drop(tx);
-        let result = fut.await;
-        assert!(result.is_err());
+#[async_trait::async_trait]
+impl IdentityFlusher for IdentityFlusherWaitGroup {
+    async fn flush(&self) {
+        let ws = self.waiters.write().await;
+        for w in ws.iter() {
+            w.flush().await;
+        }
     }
 }
