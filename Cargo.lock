@@ -4268,7 +4268,7 @@ dependencies = [
 [[package]]
 name = "solana-account-decoder"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "Inflector",
  "base64 0.22.1",
@@ -4292,7 +4292,7 @@ dependencies = [
 [[package]]
 name = "solana-clap-utils"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "chrono",
  "clap 2.34.0",
@@ -4308,7 +4308,7 @@ dependencies = [
 [[package]]
 name = "solana-client"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "async-trait",
  "bincode",
@@ -4340,7 +4340,7 @@ dependencies = [
 [[package]]
 name = "solana-compute-budget"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "rustc_version",
  "solana-sdk",
@@ -4349,7 +4349,7 @@ dependencies = [
 [[package]]
 name = "solana-config-program"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "bincode",
  "chrono",
@@ -4362,7 +4362,7 @@ dependencies = [
 [[package]]
 name = "solana-connection-cache"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "async-trait",
  "bincode",
@@ -4382,7 +4382,7 @@ dependencies = [
 [[package]]
 name = "solana-curve25519"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "bytemuck",
  "bytemuck_derive",
@@ -4394,7 +4394,7 @@ dependencies = [
 [[package]]
 name = "solana-geyser-plugin-interface"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "log",
  "solana-sdk",
@@ -4546,7 +4546,7 @@ dependencies = [
 [[package]]
 name = "solana-inline-spl"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "bytemuck",
  "rustc_version",
@@ -4556,7 +4556,7 @@ dependencies = [
 [[package]]
 name = "solana-logger"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "env_logger",
  "lazy_static",
@@ -4566,7 +4566,7 @@ dependencies = [
 [[package]]
 name = "solana-measure"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "log",
  "solana-sdk",
@@ -4575,7 +4575,7 @@ dependencies = [
 [[package]]
 name = "solana-metrics"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "crossbeam-channel",
  "gethostname",
@@ -4589,7 +4589,7 @@ dependencies = [
 [[package]]
 name = "solana-net-utils"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "bincode",
  "clap 3.2.25",
@@ -4611,7 +4611,7 @@ dependencies = [
 [[package]]
 name = "solana-perf"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "ahash",
  "bincode",
@@ -4637,7 +4637,7 @@ dependencies = [
 [[package]]
 name = "solana-program"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -4682,7 +4682,7 @@ dependencies = [
 [[package]]
 name = "solana-program-runtime"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -4710,7 +4710,7 @@ dependencies = [
 [[package]]
 name = "solana-pubsub-client"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "crossbeam-channel",
  "futures-util",
@@ -4734,7 +4734,7 @@ dependencies = [
 [[package]]
 name = "solana-quic-client"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "async-mutex",
  "async-trait",
@@ -4759,7 +4759,7 @@ dependencies = [
 [[package]]
 name = "solana-rayon-threadlimit"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "lazy_static",
  "num_cpus",
@@ -4768,7 +4768,7 @@ dependencies = [
 [[package]]
 name = "solana-remote-wallet"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "console",
  "dialoguer",
@@ -4786,7 +4786,7 @@ dependencies = [
 [[package]]
 name = "solana-rpc-client"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -4812,7 +4812,7 @@ dependencies = [
 [[package]]
 name = "solana-rpc-client-api"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -4835,7 +4835,7 @@ dependencies = [
 [[package]]
 name = "solana-rpc-client-nonce-utils"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "clap 2.34.0",
  "solana-clap-utils",
@@ -4847,7 +4847,7 @@ dependencies = [
 [[package]]
 name = "solana-sdk"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "bincode",
  "bitflags 2.6.0",
@@ -4895,7 +4895,7 @@ dependencies = [
 [[package]]
 name = "solana-sdk-macro"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "bs58",
  "proc-macro2",
@@ -4907,12 +4907,12 @@ dependencies = [
 [[package]]
 name = "solana-security-txt"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 
 [[package]]
 name = "solana-storage-proto"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "bincode",
  "bs58",
@@ -4928,7 +4928,7 @@ dependencies = [
 [[package]]
 name = "solana-streamer"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "async-channel",
  "bytes",
@@ -4961,7 +4961,7 @@ dependencies = [
 [[package]]
 name = "solana-thin-client"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "bincode",
  "log",
@@ -4975,7 +4975,7 @@ dependencies = [
 [[package]]
 name = "solana-tpu-client"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "async-trait",
  "bincode",
@@ -4998,7 +4998,7 @@ dependencies = [
 [[package]]
 name = "solana-transaction-metrics-tracker"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "Inflector",
  "base64 0.22.1",
@@ -5013,7 +5013,7 @@ dependencies = [
 [[package]]
 name = "solana-transaction-status"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "Inflector",
  "base64 0.22.1",
@@ -5039,7 +5039,7 @@ dependencies = [
 [[package]]
 name = "solana-type-overrides"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "lazy_static",
  "rand 0.8.5",
@@ -5048,7 +5048,7 @@ dependencies = [
 [[package]]
 name = "solana-udp-client"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "async-trait",
  "solana-connection-cache",
@@ -5062,7 +5062,7 @@ dependencies = [
 [[package]]
 name = "solana-version"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "log",
  "rustc_version",
@@ -5075,7 +5075,7 @@ dependencies = [
 [[package]]
 name = "solana-vote"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "itertools 0.12.1",
  "log",
@@ -5089,7 +5089,7 @@ dependencies = [
 [[package]]
 name = "solana-vote-program"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "bincode",
  "log",
@@ -5108,7 +5108,7 @@ dependencies = [
 [[package]]
 name = "solana-zk-token-sdk"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "aes-gcm-siv",
  "base64 0.22.1",
@@ -5138,7 +5138,7 @@ dependencies = [
 [[package]]
 name = "solana_rbpf"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "byteorder",
  "combine 3.8.1",
@@ -5168,7 +5168,7 @@ checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 [[package]]
 name = "spl-associated-token-account"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "assert_matches",
  "borsh 1.5.3",
@@ -5183,7 +5183,7 @@ dependencies = [
 [[package]]
 name = "spl-discriminator"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "bytemuck",
  "solana-program",
@@ -5193,7 +5193,7 @@ dependencies = [
 [[package]]
 name = "spl-discriminator-derive"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "quote",
  "spl-discriminator-syn",
@@ -5203,7 +5203,7 @@ dependencies = [
 [[package]]
 name = "spl-discriminator-syn"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5215,7 +5215,7 @@ dependencies = [
 [[package]]
 name = "spl-memo"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "solana-program",
 ]
@@ -5223,7 +5223,7 @@ dependencies = [
 [[package]]
 name = "spl-pod"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "borsh 1.5.3",
  "bytemuck",
@@ -5236,7 +5236,7 @@ dependencies = [
 [[package]]
 name = "spl-program-error"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "num-derive",
  "num-traits",
@@ -5248,7 +5248,7 @@ dependencies = [
 [[package]]
 name = "spl-program-error-derive"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5259,7 +5259,7 @@ dependencies = [
 [[package]]
 name = "spl-tlv-account-resolution"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "bytemuck",
  "solana-program",
@@ -5272,7 +5272,7 @@ dependencies = [
 [[package]]
 name = "spl-token"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "arrayref",
  "bytemuck",
@@ -5286,7 +5286,7 @@ dependencies = [
 [[package]]
 name = "spl-token-2022"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "arrayref",
  "bytemuck",
@@ -5309,7 +5309,7 @@ dependencies = [
 [[package]]
 name = "spl-token-group-interface"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "bytemuck",
  "solana-program",
@@ -5321,7 +5321,7 @@ dependencies = [
 [[package]]
 name = "spl-token-metadata-interface"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "borsh 1.5.3",
  "solana-program",
@@ -5334,7 +5334,7 @@ dependencies = [
 [[package]]
 name = "spl-transfer-hook-interface"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "arrayref",
  "bytemuck",
@@ -5349,7 +5349,7 @@ dependencies = [
 [[package]]
 name = "spl-type-length-value"
 version = "2.0.24"
-source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#0983cb118563ee054d4b97507d3c4ea32a76069c"
+source = "git+https://github.com/nabob-labs/solana-spe.git?branch=2.0.24#471f06f1bfe3913b968d989081c8c18715355926"
 dependencies = [
  "bytemuck",
  "solana-program",
