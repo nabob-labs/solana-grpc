@@ -77,9 +77,9 @@ smallvec = "1.13.2"
 thiserror = "1.0.63"
 tokio = "1.21.2"
 tokio-stream = "0.1.11"
-tonic = "0.12.1"
-tonic-build = "0.12.1"
-tonic-health = "0.12.1"
+tonic = "0.12.3"
+tonic-build = "0.12.3"
+tonic-health = "0.12.3"
 vergen = "9.0.0"
 
 [workspace.lints.clippy]
