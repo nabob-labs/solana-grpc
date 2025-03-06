@@ -1,6 +1,5 @@
 syntax = "proto3";
 
-import "google/protobuf/timestamp.proto";
 import public "solana-storage.proto";
 
 package geyser;
@@ -32,14 +31,12 @@ message SubscribeRequest {
   optional CommitmentLevel commitment = 6;
   repeated SubscribeRequestAccountsDataSlice accounts_data_slice = 7;
   optional SubscribeRequestPing ping = 9;
-  optional uint64 from_slot = 11;
 }
 
 message SubscribeRequestFilterAccounts {
   repeated string account = 2;
   repeated string owner = 3;
   repeated SubscribeRequestFilterAccountsFilter filters = 4;
-  optional bool nonempty_txn_signature = 5;
 }
 
 message SubscribeRequestFilterAccountsFilter {
@@ -47,7 +44,6 @@ message SubscribeRequestFilterAccountsFilter {
     SubscribeRequestFilterAccountsFilterMemcmp memcmp = 1;
     uint64 datasize = 2;
     bool token_account_state = 3;
-    SubscribeRequestFilterAccountsFilterLamports lamports = 4;
   }
 }
 
@@ -57,15 +53,6 @@ message SubscribeRequestFilterAccountsFilterMemcmp {
     bytes bytes = 2;
     string base58 = 3;
     string base64 = 4;
-  }
-}
-
-message SubscribeRequestFilterAccountsFilterLamports {
-  oneof cmp {
-    uint64 eq = 1;
-    uint64 ne = 2;
-    uint64 lt = 3;
-    uint64 gt = 4;
   }
 }
 
@@ -115,7 +102,6 @@ message SubscribeUpdate {
     SubscribeUpdateBlockMeta block_meta = 7;
     SubscribeUpdateEntry entry = 8;
   }
-  google.protobuf.Timestamp created_at = 11;
 }
 
 message SubscribeUpdateAccount {

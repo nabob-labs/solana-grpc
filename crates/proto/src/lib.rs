@@ -4,10 +4,7 @@ pub mod geyser {
     #![allow(clippy::clone_on_ref_ptr)]
     #![allow(clippy::missing_const_for_fn)]
 
-    #[cfg(feature = "tonic")]
-    include!(concat!(env!("OUT_DIR"), "/geyser.rs"));
-    #[cfg(not(feature = "tonic"))]
-    include!(concat!(env!("OUT_DIR"), "/no-tonic/geyser.rs"));
+    tonic::include_proto!("geyser");
 }
 
 pub mod solana {
@@ -15,16 +12,7 @@ pub mod solana {
 
     pub mod storage {
         pub mod confirmed_block {
-            #[cfg(feature = "tonic")]
-            include!(concat!(
-                env!("OUT_DIR"),
-                "/solana.storage.confirmed_block.rs"
-            ));
-            #[cfg(not(feature = "tonic"))]
-            include!(concat!(
-                env!("OUT_DIR"),
-                "/no-tonic/solana.storage.confirmed_block.rs"
-            ));
+            tonic::include_proto!("solana.storage.confirmed_block");
         }
     }
 }
@@ -33,12 +21,7 @@ pub mod prelude {
     pub use super::{geyser::*, solana::storage::confirmed_block::*};
 }
 
-#[cfg(feature = "tonic")]
-pub use tonic;
-pub use {prost, prost_types};
-
-#[cfg(feature = "plugin")]
-pub mod plugin;
+pub use {prost, tonic};
 
 #[cfg(feature = "convert")]
 pub mod convert_to {
@@ -53,7 +36,7 @@ pub mod convert_to {
             },
             pubkey::Pubkey,
             signature::Signature,
-            transaction::{SanitizedTransaction, TransactionError},
+            transaction::SanitizedTransaction,
             transaction_context::TransactionReturnData,
         },
         solana_transaction_status::{
@@ -79,7 +62,11 @@ pub mod convert_to {
                 header: Some(create_header(&message.header)),
                 account_keys: create_pubkeys(&message.account_keys),
                 recent_blockhash: message.recent_blockhash.to_bytes().into(),
-                instructions: create_instructions(&message.instructions),
+                instructions: message
+                    .instructions
+                    .iter()
+                    .map(create_instruction)
+                    .collect(),
                 versioned: false,
                 address_table_lookups: vec![],
             },
@@ -150,7 +137,12 @@ pub mod convert_to {
             return_data,
             compute_units_consumed,
         } = meta;
-        let err = create_transaction_error(status);
+        let err = match status {
+            Ok(()) => None,
+            Err(err) => Some(proto::TransactionError {
+                err: bincode::serialize(&err).expect("transaction error to serialize to bytes"),
+            }),
+        };
         let inner_instructions_none = inner_instructions.is_none();
         let inner_instructions = inner_instructions
             .as_deref()
@@ -187,17 +179,6 @@ pub mod convert_to {
             return_data: return_data.as_ref().map(create_return_data),
             return_data_none: return_data.is_none(),
             compute_units_consumed: *compute_units_consumed,
-        }
-    }
-
-    pub fn create_transaction_error(
-        status: &Result<(), TransactionError>,
-    ) -> Option<proto::TransactionError> {
-        match status {
-            Ok(()) => None,
-            Err(err) => Some(proto::TransactionError {
-                err: bincode::serialize(&err).expect("transaction error to serialize to bytes"),
-            }),
         }
     }
 
@@ -249,7 +230,8 @@ pub mod convert_to {
     pub fn create_rewards_obj(rewards: &[Reward], num_partitions: Option<u64>) -> proto::Rewards {
         proto::Rewards {
             rewards: create_rewards(rewards),
-            num_partitions: num_partitions.map(create_num_partitions),
+            num_partitions: num_partitions
+                .map(|num_partitions| proto::NumPartitions { num_partitions }),
         }
     }
 
@@ -262,23 +244,15 @@ pub mod convert_to {
             pubkey: reward.pubkey.clone(),
             lamports: reward.lamports,
             post_balance: reward.post_balance,
-            reward_type: create_reward_type(reward.reward_type) as i32,
+            reward_type: match reward.reward_type {
+                None => proto::RewardType::Unspecified,
+                Some(RewardType::Fee) => proto::RewardType::Fee,
+                Some(RewardType::Rent) => proto::RewardType::Rent,
+                Some(RewardType::Staking) => proto::RewardType::Staking,
+                Some(RewardType::Voting) => proto::RewardType::Voting,
+            } as i32,
             commission: reward.commission.map(|c| c.to_string()).unwrap_or_default(),
         }
-    }
-
-    pub const fn create_reward_type(reward_type: Option<RewardType>) -> proto::RewardType {
-        match reward_type {
-            None => proto::RewardType::Unspecified,
-            Some(RewardType::Fee) => proto::RewardType::Fee,
-            Some(RewardType::Rent) => proto::RewardType::Rent,
-            Some(RewardType::Staking) => proto::RewardType::Staking,
-            Some(RewardType::Voting) => proto::RewardType::Voting,
-        }
-    }
-
-    pub const fn create_num_partitions(num_partitions: u64) -> proto::NumPartitions {
-        proto::NumPartitions { num_partitions }
     }
 
     pub fn create_return_data(return_data: &TransactionReturnData) -> proto::ReturnData {
@@ -317,20 +291,25 @@ pub mod convert_from {
         },
         solana_transaction_status::{
             ConfirmedBlock, InnerInstruction, InnerInstructions, Reward, RewardType,
-            RewardsAndNumPartitions, TransactionStatusMeta, TransactionTokenBalance,
-            TransactionWithStatusMeta, VersionedTransactionWithStatusMeta,
+            TransactionStatusMeta, TransactionTokenBalance, TransactionWithStatusMeta,
+            VersionedTransactionWithStatusMeta,
         },
     };
 
-    type CreateResult<T> = Result<T, &'static str>;
+    fn ensure_some<T>(maybe_value: Option<T>, message: impl Into<String>) -> Result<T, String> {
+        match maybe_value {
+            Some(value) => Ok(value),
+            None => Err(message.into()),
+        }
+    }
 
-    pub fn create_block(block: proto::SubscribeUpdateBlock) -> CreateResult<ConfirmedBlock> {
+    pub fn create_block(block: proto::SubscribeUpdateBlock) -> Result<ConfirmedBlock, String> {
         let mut transactions = vec![];
         for tx in block.transactions {
             transactions.push(create_tx_with_meta(tx)?);
         }
 
-        let block_rewards = block.rewards.ok_or("failed to get rewards")?;
+        let block_rewards = ensure_some(block.rewards, "failed to get rewards")?;
         let mut rewards = vec![];
         for reward in block_rewards.rewards {
             rewards.push(create_reward(reward)?);
@@ -343,28 +322,22 @@ pub mod convert_from {
             transactions,
             rewards,
             num_partitions: block_rewards.num_partitions.map(|msg| msg.num_partitions),
-            block_time: Some(
-                block
-                    .block_time
-                    .map(|wrapper| wrapper.timestamp)
-                    .ok_or("failed to get block_time")?,
-            ),
-            block_height: Some(
-                block
-                    .block_height
-                    .map(|wrapper| wrapper.block_height)
-                    .ok_or("failed to get block_height")?,
-            ),
+            block_time: Some(ensure_some(
+                block.block_time.map(|wrapper| wrapper.timestamp),
+                "failed to get block_time",
+            )?),
+            block_height: Some(ensure_some(
+                block.block_height.map(|wrapper| wrapper.block_height),
+                "failed to get block_height",
+            )?),
         })
     }
 
     pub fn create_tx_with_meta(
         tx: proto::SubscribeUpdateTransactionInfo,
-    ) -> CreateResult<TransactionWithStatusMeta> {
-        let meta = tx.meta.ok_or("failed to get transaction meta")?;
-        let tx = tx
-            .transaction
-            .ok_or("failed to get transaction transaction")?;
+    ) -> Result<TransactionWithStatusMeta, String> {
+        let meta = ensure_some(tx.meta, "failed to get transaction meta")?;
+        let tx = ensure_some(tx.transaction, "failed to get transaction transaction")?;
 
         Ok(TransactionWithStatusMeta::Complete(
             VersionedTransactionWithStatusMeta {
@@ -374,48 +347,50 @@ pub mod convert_from {
         ))
     }
 
-    pub fn create_tx_versioned(tx: proto::Transaction) -> CreateResult<VersionedTransaction> {
+    pub fn create_tx_versioned(tx: proto::Transaction) -> Result<VersionedTransaction, String> {
         let mut signatures = Vec::with_capacity(tx.signatures.len());
         for signature in tx.signatures {
             signatures.push(match Signature::try_from(signature.as_slice()) {
                 Ok(signature) => signature,
-                Err(_error) => return Err("failed to parse Signature"),
+                Err(_error) => return Err("failed to parse Signature".to_owned()),
             });
         }
 
         Ok(VersionedTransaction {
             signatures,
-            message: create_message(tx.message.ok_or("failed to get message")?)?,
+            message: create_message(ensure_some(tx.message, "failed to get message")?)?,
         })
     }
 
-    pub fn create_message(message: proto::Message) -> CreateResult<VersionedMessage> {
-        let header = message.header.ok_or("failed to get MessageHeader")?;
+    pub fn create_message(message: proto::Message) -> Result<VersionedMessage, String> {
+        let header = ensure_some(message.header, "failed to get MessageHeader")?;
         let header = MessageHeader {
-            num_required_signatures: header
-                .num_required_signatures
-                .try_into()
-                .map_err(|_| "failed to parse num_required_signatures")?,
-            num_readonly_signed_accounts: header
-                .num_readonly_signed_accounts
-                .try_into()
-                .map_err(|_| "failed to parse num_readonly_signed_accounts")?,
-            num_readonly_unsigned_accounts: header
-                .num_readonly_unsigned_accounts
-                .try_into()
-                .map_err(|_| "failed to parse num_readonly_unsigned_accounts")?,
+            num_required_signatures: ensure_some(
+                header.num_required_signatures.try_into().ok(),
+                "failed to parse num_required_signatures",
+            )?,
+            num_readonly_signed_accounts: ensure_some(
+                header.num_readonly_signed_accounts.try_into().ok(),
+                "failed to parse num_readonly_signed_accounts",
+            )?,
+            num_readonly_unsigned_accounts: ensure_some(
+                header.num_readonly_unsigned_accounts.try_into().ok(),
+                "failed to parse num_readonly_unsigned_accounts",
+            )?,
         };
 
         if message.recent_blockhash.len() != HASH_BYTES {
-            return Err("failed to parse hash");
+            return Err("failed to parse hash".to_owned());
         }
 
         Ok(if message.versioned {
             let mut address_table_lookups = Vec::with_capacity(message.address_table_lookups.len());
             for table in message.address_table_lookups {
                 address_table_lookups.push(MessageAddressTableLookup {
-                    account_key: Pubkey::try_from(table.account_key.as_slice())
-                        .map_err(|_| "failed to parse Pubkey")?,
+                    account_key: ensure_some(
+                        Pubkey::try_from(table.account_key.as_slice()).ok(),
+                        "failed to parse Pubkey",
+                    )?,
                     writable_indexes: table.writable_indexes,
                     readonly_indexes: table.readonly_indexes,
                 });
@@ -440,18 +415,18 @@ pub mod convert_from {
 
     pub fn create_message_instructions(
         ixs: Vec<proto::CompiledInstruction>,
-    ) -> CreateResult<Vec<CompiledInstruction>> {
+    ) -> Result<Vec<CompiledInstruction>, String> {
         ixs.into_iter().map(create_message_instruction).collect()
     }
 
     pub fn create_message_instruction(
         ix: proto::CompiledInstruction,
-    ) -> CreateResult<CompiledInstruction> {
+    ) -> Result<CompiledInstruction, String> {
         Ok(CompiledInstruction {
-            program_id_index: ix
-                .program_id_index
-                .try_into()
-                .map_err(|_| "failed to decode CompiledInstruction.program_id_index)")?,
+            program_id_index: ensure_some(
+                ix.program_id_index.try_into().ok(),
+                "failed to decode CompiledInstruction.program_id_index)",
+            )?,
             accounts: ix.accounts,
             data: ix.data,
         })
@@ -459,7 +434,7 @@ pub mod convert_from {
 
     pub fn create_tx_meta(
         meta: proto::TransactionStatusMeta,
-    ) -> CreateResult<TransactionStatusMeta> {
+    ) -> Result<TransactionStatusMeta, String> {
         let meta_status = match create_tx_error(meta.err.as_ref())? {
             Some(err) => Err(err),
             None => Ok(()),
@@ -487,10 +462,12 @@ pub mod convert_from {
             return_data: if meta.return_data_none {
                 None
             } else {
-                let data = meta.return_data.ok_or("failed to get return_data")?;
+                let data = ensure_some(meta.return_data, "failed to get return_data")?;
                 Some(TransactionReturnData {
-                    program_id: Pubkey::try_from(data.program_id.as_slice())
-                        .map_err(|_| "failed to parse program_id")?,
+                    program_id: ensure_some(
+                        Pubkey::try_from(data.program_id.as_slice()).ok(),
+                        "failed to parse program_id",
+                    )?,
                     data: data.data,
                 })
             },
@@ -500,29 +477,32 @@ pub mod convert_from {
 
     pub fn create_tx_error(
         err: Option<&proto::TransactionError>,
-    ) -> CreateResult<Option<TransactionError>> {
-        err.map(|err| bincode::deserialize::<TransactionError>(&err.err))
-            .transpose()
-            .map_err(|_| "failed to decode TransactionError")
+    ) -> Result<Option<TransactionError>, String> {
+        ensure_some(
+            err.map(|err| bincode::deserialize::<TransactionError>(&err.err))
+                .transpose()
+                .ok(),
+            "failed to decode TransactionError",
+        )
     }
 
     pub fn create_meta_inner_instructions(
         ixs: Vec<proto::InnerInstructions>,
-    ) -> CreateResult<Vec<InnerInstructions>> {
+    ) -> Result<Vec<InnerInstructions>, String> {
         ixs.into_iter().map(create_meta_inner_instruction).collect()
     }
 
     pub fn create_meta_inner_instruction(
         ix: proto::InnerInstructions,
-    ) -> CreateResult<InnerInstructions> {
+    ) -> Result<InnerInstructions, String> {
         let mut instructions = vec![];
         for ix in ix.instructions {
             instructions.push(InnerInstruction {
                 instruction: CompiledInstruction {
-                    program_id_index: ix
-                        .program_id_index
-                        .try_into()
-                        .map_err(|_| "failed to decode CompiledInstruction.program_id_index)")?,
+                    program_id_index: ensure_some(
+                        ix.program_id_index.try_into().ok(),
+                        "failed to decode CompiledInstruction.program_id_index)",
+                    )?,
                     accounts: ix.accounts,
                     data: ix.data,
                 },
@@ -530,33 +510,23 @@ pub mod convert_from {
             });
         }
         Ok(InnerInstructions {
-            index: ix
-                .index
-                .try_into()
-                .map_err(|_| "failed to decode InnerInstructions.index")?,
+            index: ensure_some(
+                ix.index.try_into().ok(),
+                "failed to decode InnerInstructions.index",
+            )?,
             instructions,
         })
     }
 
-    pub fn create_rewards_obj(rewards: proto::Rewards) -> CreateResult<RewardsAndNumPartitions> {
-        Ok(RewardsAndNumPartitions {
-            rewards: rewards
-                .rewards
-                .into_iter()
-                .map(create_reward)
-                .collect::<Result<_, _>>()?,
-            num_partitions: rewards.num_partitions.map(|wrapper| wrapper.num_partitions),
-        })
-    }
-
-    pub fn create_reward(reward: proto::Reward) -> CreateResult<Reward> {
+    pub fn create_reward(reward: proto::Reward) -> Result<Reward, String> {
         Ok(Reward {
             pubkey: reward.pubkey,
             lamports: reward.lamports,
             post_balance: reward.post_balance,
-            reward_type: match proto::RewardType::try_from(reward.reward_type)
-                .map_err(|_| "failed to parse reward_type")?
-            {
+            reward_type: match ensure_some(
+                proto::RewardType::try_from(reward.reward_type).ok(),
+                "failed to parse reward_type",
+            )? {
                 proto::RewardType::Unspecified => None,
                 proto::RewardType::Fee => Some(RewardType::Fee),
                 proto::RewardType::Rent => Some(RewardType::Rent),
@@ -566,36 +536,32 @@ pub mod convert_from {
             commission: if reward.commission.is_empty() {
                 None
             } else {
-                Some(
-                    reward
-                        .commission
-                        .parse()
-                        .map_err(|_| "failed to parse reward commission")?,
-                )
+                Some(ensure_some(
+                    reward.commission.parse().ok(),
+                    "failed to parse reward commission",
+                )?)
             },
         })
     }
 
     pub fn create_token_balances(
         balances: Vec<proto::TokenBalance>,
-    ) -> CreateResult<Vec<TransactionTokenBalance>> {
+    ) -> Result<Vec<TransactionTokenBalance>, String> {
         let mut vec = Vec::with_capacity(balances.len());
         for balance in balances {
-            let ui_amount = balance
-                .ui_token_amount
-                .ok_or("failed to get ui_token_amount")?;
+            let ui_amount = ensure_some(balance.ui_token_amount, "failed to get ui_token_amount")?;
             vec.push(TransactionTokenBalance {
-                account_index: balance
-                    .account_index
-                    .try_into()
-                    .map_err(|_| "failed to parse account_index")?,
+                account_index: ensure_some(
+                    balance.account_index.try_into().ok(),
+                    "failed to parse account_index",
+                )?,
                 mint: balance.mint,
                 ui_token_amount: UiTokenAmount {
                     ui_amount: Some(ui_amount.ui_amount),
-                    decimals: ui_amount
-                        .decimals
-                        .try_into()
-                        .map_err(|_| "failed to parse decimals")?,
+                    decimals: ensure_some(
+                        ui_amount.decimals.try_into().ok(),
+                        "failed to parse decimals",
+                    )?,
                     amount: ui_amount.amount,
                     ui_amount_string: ui_amount.ui_amount_string,
                 },
@@ -609,27 +575,27 @@ pub mod convert_from {
     pub fn create_loaded_addresses(
         writable: Vec<Vec<u8>>,
         readonly: Vec<Vec<u8>>,
-    ) -> CreateResult<LoadedAddresses> {
+    ) -> Result<LoadedAddresses, String> {
         Ok(LoadedAddresses {
             writable: create_pubkey_vec(writable)?,
             readonly: create_pubkey_vec(readonly)?,
         })
     }
 
-    pub fn create_pubkey_vec(pubkeys: Vec<Vec<u8>>) -> CreateResult<Vec<Pubkey>> {
+    pub fn create_pubkey_vec(pubkeys: Vec<Vec<u8>>) -> Result<Vec<Pubkey>, String> {
         pubkeys
             .iter()
             .map(|pubkey| create_pubkey(pubkey.as_slice()))
             .collect()
     }
 
-    pub fn create_pubkey(pubkey: &[u8]) -> CreateResult<Pubkey> {
-        Pubkey::try_from(pubkey).map_err(|_| "failed to parse Pubkey")
+    pub fn create_pubkey(pubkey: &[u8]) -> Result<Pubkey, String> {
+        ensure_some(Pubkey::try_from(pubkey).ok(), "failed to parse Pubkey")
     }
 
     pub fn create_account(
         account: proto::SubscribeUpdateAccountInfo,
-    ) -> CreateResult<(Pubkey, Account)> {
+    ) -> Result<(Pubkey, Account), String> {
         let pubkey = create_pubkey(&account.pubkey)?;
         let account = Account {
             lamports: account.lamports,

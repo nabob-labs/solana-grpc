@@ -200,7 +200,7 @@ pub struct ConfigListenSolanaLike {
     pub bind: Vec<SocketAddr>,
 
     /// Allow to do sanitize check on RPC server (required for ALTs), supported only on patched nodes
-    /// If option set to `true`` then Highway would check `sanitizeTransaction` method before start
+    /// If option set to `true`` then highway would check `sanitizeTransaction` method before start
     /// See https://github.com/rpcpool/solana-public/tree/v1.17.31-rpc-sanitize-tx
     #[serde(default)]
     pub proxy_sanitize_check: bool,

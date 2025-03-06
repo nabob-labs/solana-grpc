@@ -13,7 +13,7 @@ futures = { workspace = true }
 thiserror ={ workspace = true }
 tonic = { workspace = true, features = ["tls", "tls-roots"] }
 tonic-health = { workspace = true }
-solana-grpc-proto = { workspace = true, features = ["tonic", "tonic-compression"] }
+solana-grpc-proto = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

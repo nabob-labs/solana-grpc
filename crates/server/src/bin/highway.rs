@@ -61,7 +61,7 @@ struct Args {
 
 #[derive(Debug, Subcommand)]
 enum ArgsCommands {
-    /// Highway admin RPC interface
+    /// highway admin RPC interface
     Admin {
         #[command(subcommand)]
         cmd: ArgsCommandAdmin,

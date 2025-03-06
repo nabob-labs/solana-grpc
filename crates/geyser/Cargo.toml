@@ -14,7 +14,6 @@ crate-type = ["cdylib", "rlib"]
 name = "config-check"
 
 [dependencies]
-affinity = { workspace = true }
 solana-geyser-plugin-interface = { workspace = true }
 anyhow = { workspace = true }
 base64 = { workspace = true }
@@ -26,25 +25,22 @@ futures = { workspace = true }
 hostname = { workspace = true }
 http = { workspace = true }
 http-body-util = { workspace = true }
-humantime-serde = { workspace = true }
 hyper = { workspace = true }
 hyper-util = { workspace = true }
 lazy_static = { workspace = true }
 log = { workspace = true }
 prometheus = { workspace = true }
-prost-types = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 solana-logger = { workspace = true }
 solana-sdk = { workspace = true }
 solana-transaction-status = { workspace = true }
 spl-token-2022 = { workspace = true, features = ["no-entrypoint"] }
-thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "fs"] }
 tokio-stream = { workspace = true }
 tonic = { workspace = true, features = ["gzip", "zstd", "tls", "tls-roots"] }
 tonic-health = { workspace = true }
-solana-grpc-proto = { workspace = true, features = ["convert", "plugin"] }
+solana-grpc-proto = { workspace = true, features = ["convert"] }
 
 [build-dependencies]
 anyhow = { workspace = true }

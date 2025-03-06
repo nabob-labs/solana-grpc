@@ -3,10 +3,10 @@ use {
         GeyserPluginError, Result as PluginResult,
     },
     serde::{de, Deserialize, Deserializer},
-    std::{collections::HashSet, fs::read_to_string, net::SocketAddr, path::Path, time::Duration},
+    solana_sdk::pubkey::Pubkey,
+    std::{collections::HashSet, fs::read_to_string, net::SocketAddr, path::Path},
     tokio::sync::Semaphore,
     tonic::codec::CompressionEncoding,
-    solana_grpc_proto::plugin::filter::limits::FilterLimits,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -15,11 +15,12 @@ pub struct Config {
     pub libpath: String,
     #[serde(default)]
     pub log: ConfigLog,
-    #[serde(default)]
-    pub tokio: ConfigTokio,
     pub grpc: ConfigGrpc,
     #[serde(default)]
     pub prometheus: Option<ConfigPrometheus>,
+    /// Action on block re-construction error
+    #[serde(default)]
+    pub block_fail_action: ConfigBlockFailAction,
     /// Collect client filters, processed slot and make it available on prometheus port `/debug_clients`
     #[serde(default)]
     pub debug_clients_http: bool,
@@ -58,74 +59,6 @@ impl ConfigLog {
     fn default_level() -> String {
         "info".to_owned()
     }
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ConfigTokio {
-    /// Number of worker threads in Tokio runtime
-    pub worker_threads: Option<usize>,
-    /// Threads affinity
-    #[serde(deserialize_with = "ConfigTokio::deserialize_affinity")]
-    pub affinity: Option<Vec<usize>>,
-}
-
-impl ConfigTokio {
-    fn deserialize_affinity<'de, D>(deserializer: D) -> Result<Option<Vec<usize>>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        match Option::<&str>::deserialize(deserializer)? {
-            Some(taskset) => parse_taskset(taskset).map(Some).map_err(de::Error::custom),
-            None => Ok(None),
-        }
-    }
-}
-
-fn parse_taskset(taskset: &str) -> Result<Vec<usize>, String> {
-    let mut set = HashSet::new();
-    for taskset2 in taskset.split(',') {
-        match taskset2.split_once('-') {
-            Some((start, end)) => {
-                let start: usize = start
-                    .parse()
-                    .map_err(|_error| format!("failed to parse {start:?} from {taskset:?}"))?;
-                let end: usize = end
-                    .parse()
-                    .map_err(|_error| format!("failed to parse {end:?} from {taskset:?}"))?;
-                if start > end {
-                    return Err(format!("invalid interval {taskset2:?} in {taskset:?}"));
-                }
-                for idx in start..=end {
-                    set.insert(idx);
-                }
-            }
-            None => {
-                set.insert(
-                    taskset2.parse().map_err(|_error| {
-                        format!("failed to parse {taskset2:?} from {taskset:?}")
-                    })?,
-                );
-            }
-        }
-    }
-
-    let mut vec = set.into_iter().collect::<Vec<usize>>();
-    vec.sort();
-
-    if let Some(set_max_index) = vec.last().copied() {
-        let max_index = affinity::get_thread_affinity()
-            .map_err(|_err| "failed to get affinity".to_owned())?
-            .into_iter()
-            .max()
-            .unwrap_or(0);
-
-        if set_max_index > max_index {
-            return Err(format!("core index must be in the range [0, {max_index}]"));
-        }
-    }
-
-    Ok(vec)
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -173,35 +106,10 @@ pub struct ConfigGrpc {
     #[serde(default)]
     pub unary_disabled: bool,
     /// Limits for possible filters
-    #[serde(default, alias = "filters")]
-    pub filter_limits: FilterLimits,
+    #[serde(default)]
+    pub filters: ConfigGrpcFilters,
     /// x_token to enforce on connections
     pub x_token: Option<String>,
-    /// Filter name size limit
-    #[serde(default = "ConfigGrpc::default_filter_name_size_limit")]
-    pub filter_name_size_limit: usize,
-    /// Number of cached filter names before doing cleanup
-    #[serde(default = "ConfigGrpc::default_filter_names_size_limit")]
-    pub filter_names_size_limit: usize,
-    /// Cleanup interval once filter names reached `filter_names_size_limit`
-    #[serde(
-        default = "ConfigGrpc::default_filter_names_cleanup_interval",
-        with = "humantime_serde"
-    )]
-    pub filter_names_cleanup_interval: Duration,
-    /// Number of slots stored for re-broadcast (replay)
-    #[serde(default = "ConfigGrpc::default_replay_stored_slots")]
-    pub replay_stored_slots: u64,
-    #[serde(default)]
-    pub server_http2_adaptive_window: Option<bool>,
-    #[serde(default, with = "humantime_serde")]
-    pub server_http2_keepalive_interval: Option<Duration>,
-    #[serde(default, with = "humantime_serde")]
-    pub server_http2_keepalive_timeout: Option<Duration>,
-    #[serde(default)]
-    pub server_initial_connection_window_size: Option<u32>,
-    #[serde(default)]
-    pub server_initial_stream_window_size: Option<u32>,
 }
 
 impl ConfigGrpc {
@@ -223,22 +131,6 @@ impl ConfigGrpc {
 
     const fn unary_concurrency_limit_default() -> usize {
         Semaphore::MAX_PERMITS
-    }
-
-    const fn default_filter_name_size_limit() -> usize {
-        128
-    }
-
-    const fn default_filter_names_size_limit() -> usize {
-        4_096
-    }
-
-    const fn default_filter_names_cleanup_interval() -> Duration {
-        Duration::from_secs(1)
-    }
-
-    const fn default_replay_stored_slots() -> u64 {
-        0
     }
 }
 
@@ -293,7 +185,179 @@ impl ConfigGrpcCompression {
     }
 
     fn default_compression() -> Vec<CompressionEncoding> {
-        vec![CompressionEncoding::Gzip, CompressionEncoding::Zstd]
+        vec![CompressionEncoding::Gzip]
+    }
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ConfigGrpcFilters {
+    pub accounts: ConfigGrpcFiltersAccounts,
+    pub slots: ConfigGrpcFiltersSlots,
+    pub transactions: ConfigGrpcFiltersTransactions,
+    pub transactions_status: ConfigGrpcFiltersTransactions,
+    pub blocks: ConfigGrpcFiltersBlocks,
+    pub blocks_meta: ConfigGrpcFiltersBlocksMeta,
+    pub entry: ConfigGrpcFiltersEntry,
+}
+
+impl ConfigGrpcFilters {
+    pub fn check_max(len: usize, max: usize) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            len <= max,
+            "Max amount of filters reached, only {} allowed",
+            max
+        );
+        Ok(())
+    }
+
+    pub fn check_any(is_empty: bool, any: bool) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            !is_empty || any,
+            "Broadcast `any` is not allowed, at least one filter required"
+        );
+        Ok(())
+    }
+
+    pub fn check_pubkey_max(len: usize, max: usize) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            len <= max,
+            "Max amount of Pubkeys reached, only {} allowed",
+            max
+        );
+        Ok(())
+    }
+
+    pub fn check_pubkey_reject(pubkey: &Pubkey, set: &HashSet<Pubkey>) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            !set.contains(pubkey),
+            "Pubkey {} in filters not allowed",
+            pubkey
+        );
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ConfigGrpcFiltersAccounts {
+    pub max: usize,
+    pub any: bool,
+    pub account_max: usize,
+    #[serde(deserialize_with = "deserialize_pubkey_set")]
+    pub account_reject: HashSet<Pubkey>,
+    pub owner_max: usize,
+    #[serde(deserialize_with = "deserialize_pubkey_set")]
+    pub owner_reject: HashSet<Pubkey>,
+}
+
+impl Default for ConfigGrpcFiltersAccounts {
+    fn default() -> Self {
+        Self {
+            max: usize::MAX,
+            any: true,
+            account_max: usize::MAX,
+            account_reject: HashSet::new(),
+            owner_max: usize::MAX,
+            owner_reject: HashSet::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ConfigGrpcFiltersSlots {
+    #[serde(deserialize_with = "deserialize_usize_str")]
+    pub max: usize,
+}
+
+impl Default for ConfigGrpcFiltersSlots {
+    fn default() -> Self {
+        Self { max: usize::MAX }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ConfigGrpcFiltersTransactions {
+    #[serde(deserialize_with = "deserialize_usize_str")]
+    pub max: usize,
+    pub any: bool,
+    #[serde(deserialize_with = "deserialize_usize_str")]
+    pub account_include_max: usize,
+    #[serde(deserialize_with = "deserialize_pubkey_set")]
+    pub account_include_reject: HashSet<Pubkey>,
+    #[serde(deserialize_with = "deserialize_usize_str")]
+    pub account_exclude_max: usize,
+    #[serde(deserialize_with = "deserialize_usize_str")]
+    pub account_required_max: usize,
+}
+
+impl Default for ConfigGrpcFiltersTransactions {
+    fn default() -> Self {
+        Self {
+            max: usize::MAX,
+            any: true,
+            account_include_max: usize::MAX,
+            account_include_reject: HashSet::new(),
+            account_exclude_max: usize::MAX,
+            account_required_max: usize::MAX,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ConfigGrpcFiltersBlocks {
+    #[serde(deserialize_with = "deserialize_usize_str")]
+    pub max: usize,
+    #[serde(deserialize_with = "deserialize_usize_str")]
+    pub account_include_max: usize,
+    pub account_include_any: bool,
+    #[serde(deserialize_with = "deserialize_pubkey_set")]
+    pub account_include_reject: HashSet<Pubkey>,
+    pub include_transactions: bool,
+    pub include_accounts: bool,
+    pub include_entries: bool,
+}
+
+impl Default for ConfigGrpcFiltersBlocks {
+    fn default() -> Self {
+        Self {
+            max: usize::MAX,
+            account_include_max: usize::MAX,
+            account_include_any: true,
+            account_include_reject: HashSet::new(),
+            include_transactions: true,
+            include_accounts: true,
+            include_entries: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ConfigGrpcFiltersBlocksMeta {
+    #[serde(deserialize_with = "deserialize_usize_str")]
+    pub max: usize,
+}
+
+impl Default for ConfigGrpcFiltersBlocksMeta {
+    fn default() -> Self {
+        Self { max: usize::MAX }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ConfigGrpcFiltersEntry {
+    #[serde(deserialize_with = "deserialize_usize_str")]
+    pub max: usize,
+}
+
+impl Default for ConfigGrpcFiltersEntry {
+    fn default() -> Self {
+        Self { max: usize::MAX }
     }
 }
 
@@ -304,20 +368,33 @@ pub struct ConfigPrometheus {
     pub address: SocketAddr,
 }
 
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum ValueIntStr<'a> {
-    Int(usize),
-    Str(&'a str),
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ConfigBlockFailAction {
+    Log,
+    Panic,
+}
+
+impl Default for ConfigBlockFailAction {
+    fn default() -> Self {
+        Self::Log
+    }
 }
 
 fn deserialize_usize_str<'de, D>(deserializer: D) -> Result<usize, D::Error>
 where
     D: Deserializer<'de>,
 {
-    match ValueIntStr::deserialize(deserializer)? {
-        ValueIntStr::Int(value) => Ok(value),
-        ValueIntStr::Str(value) => value
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Value {
+        Integer(usize),
+        String(String),
+    }
+
+    match Value::deserialize(deserializer)? {
+        Value::Integer(value) => Ok(value),
+        Value::String(value) => value
             .replace('_', "")
             .parse::<usize>()
             .map_err(de::Error::custom),
@@ -328,13 +405,34 @@ fn deserialize_usize_str_maybe<'de, D>(deserializer: D) -> Result<Option<usize>,
 where
     D: Deserializer<'de>,
 {
-    match Option::<ValueIntStr>::deserialize(deserializer)? {
-        Some(ValueIntStr::Int(value)) => Ok(Some(value)),
-        Some(ValueIntStr::Str(value)) => value
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Value {
+        Integer(usize),
+        String(String),
+    }
+
+    match Option::<Value>::deserialize(deserializer)? {
+        Some(Value::Integer(value)) => Ok(Some(value)),
+        Some(Value::String(value)) => value
             .replace('_', "")
             .parse::<usize>()
             .map(Some)
             .map_err(de::Error::custom),
         None => Ok(None),
     }
+}
+
+fn deserialize_pubkey_set<'de, D>(deserializer: D) -> Result<HashSet<Pubkey>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Vec::<&str>::deserialize(deserializer)?
+        .into_iter()
+        .map(|value| {
+            value
+                .parse()
+                .map_err(|error| de::Error::custom(format!("Invalid pubkey: {value} ({error:?})")))
+        })
+        .collect::<Result<_, _>>()
 }
