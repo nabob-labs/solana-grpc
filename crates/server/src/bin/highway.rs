@@ -4,7 +4,6 @@ use {
     futures::future::{self, Either, FutureExt},
     jsonrpsee::http_client::HttpClientBuilder,
     solana_sdk::{
-        commitment_config::CommitmentConfig,
         pubkey::Pubkey,
         signature::{read_keypair, Keypair},
     },
@@ -13,7 +12,7 @@ use {
         fs,
         path::PathBuf,
         sync::{
-            atomic::{AtomicUsize, Ordering},
+            atomic::{AtomicBool, AtomicUsize, Ordering},
             Arc,
         },
     },
@@ -22,8 +21,10 @@ use {
         signal::unix::{signal, SignalKind},
         sync::{broadcast, oneshot},
         task::JoinHandle,
+        time::{sleep, Duration},
     },
     tracing::{info, warn},
+    solana_grpc_server::rpc::rpc_admin::RpcClient,
     solana_grpc_server::{
         blockhash_queue::BlockhashQueue,
         cluster_tpu_info::ClusterTpuInfo,
@@ -34,12 +35,12 @@ use {
         metrics::highway as metrics,
         quic::{QuicClient, QuicClientMetric},
         quic_solana::ConnectionCache,
-        rpc::{rpc_admin::RpcClient, rpc_solana_like::RpcServerImpl, RpcServer, RpcServerType},
+        rpc::{rpc_solana_like::RpcServerImpl, RpcServer, RpcServerType},
         setup_tracing,
         stake::StakeInfo,
         task_group::TaskGroup,
-        transactions::{GrpcRootedTxReceiver, SendTransactionsPool},
-        util::{IdentityFlusherWaitGroup, PubkeySigner, ValueObserver, WaitShutdown},
+        transactions::{RootedTransactions, SendTransactionsPool},
+        util::{PubkeySigner, ValueObserver, WaitShutdown},
     },
 };
 
@@ -77,8 +78,6 @@ enum ArgsCommandAdmin {
         #[clap(long)]
         identity: Option<PathBuf>,
     },
-    /// Reset identity
-    ResetIdentityKeypair,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -143,9 +142,6 @@ async fn run_cmd_admin(config: ConfigHighway, admin_cmd: ArgsCommandAdmin) -> an
             );
             println!("Successfully update identity to {identity}");
         }
-        ArgsCommandAdmin::ResetIdentityKeypair => {
-            client.reset_identity().await?;
-        }
     }
 
     Ok(())
@@ -161,7 +157,6 @@ async fn spawn_highway_gw_listener(
     loop {
         let highway_gw_config2 = highway_gw_config.clone();
         let tx_sender2 = tx_sender.clone();
-        let mut identity_observer2 = identity_observer.clone();
         let (stop_tx2, stop_rx2) = tokio::sync::oneshot::channel();
         let fut = identity_observer.until_value_change(move |current_identity| {
             if let Some(expected_identity) = expected_identity {
@@ -200,13 +195,6 @@ async fn spawn_highway_gw_listener(
                 drop(stop_tx2);
                 return Ok(());
             },
-            current_identity = identity_observer2.observe() => {
-                if let Some(expected_identity) = expected_identity {
-                    if current_identity.pubkey() != expected_identity {
-                        drop(stop_tx2);
-                    }
-                }
-            }
         }
     }
 }
@@ -248,14 +236,16 @@ fn spawn_lewis_metric_subscriber(
 }
 
 async fn run_highway(config: ConfigHighway) -> anyhow::Result<()> {
+    let shutdown_flag = Arc::new(AtomicBool::new(false));
+
+    // Initialize metrics
     metrics::init();
     if let Some(identity) = config.identity.expected {
-        metrics::quic_set_identity_expected(identity);
+        metrics::quic_set_indetity_expected(identity);
     }
-    // let flush_identity = Arc::new(flush_identity);
-    let (shutdown_geyser_tx, shutdown_geyser_rx) = oneshot::channel();
-    let (geyser, mut geyser_handle) = GeyserSubscriber::new(
-        shutdown_geyser_rx,
+
+    let geyser = GeyserSubscriber::new(
+        Arc::clone(&shutdown_flag),
         config.upstream.primary_grpc.clone(),
         config
             .upstream
@@ -270,22 +260,11 @@ async fn run_highway(config: ConfigHighway) -> anyhow::Result<()> {
         config.blocklist,
     )
     .await;
-
-    let rooted_tx_geyser_rx = geyser
-        .subscribe_transactions()
-        .await
-        .expect("failed to subscribe geyser transactions");
-    let (rooted_transactions_rx, rooted_tx_loop_fut) =
-        GrpcRootedTxReceiver::new(rooted_tx_geyser_rx);
-
-    let identity_flusher_wg = IdentityFlusherWaitGroup::default();
+    let rooted_transactions = RootedTransactions::new(&geyser).await?;
 
     let initial_identity = config.identity.keypair.unwrap_or(Keypair::new());
-    let (quic_session, quic_identity_man) = ConnectionCache::new(
-        config.quic.clone(),
-        initial_identity,
-        identity_flusher_wg.clone(),
-    );
+    let (quic_session, quic_identity_man) =
+        ConnectionCache::new(config.quic.clone(), initial_identity);
 
     let quic_tx_sender = QuicClient::new(
         Arc::new(cluster_tpu_info.clone()),
@@ -296,30 +275,20 @@ async fn run_highway(config: ConfigHighway) -> anyhow::Result<()> {
     let quic_tx_metrics_listener = quic_tx_sender.subscribe_metrics();
     let lewis = spawn_lewis_metric_subscriber(config.metrics_upstream, quic_tx_metrics_listener);
 
-    let (send_transactions, send_tx_pool_fut) = SendTransactionsPool::spawn(
+    let send_transactions = SendTransactionsPool::new(
         config.send_transaction_service,
-        Arc::new(blockhash_queue.clone()),
-        Box::new(rooted_transactions_rx),
-        Arc::new(quic_tx_sender.clone()),
+        blockhash_queue.clone(),
+        rooted_transactions.clone(),
+        quic_tx_sender.clone(),
     )
-    .await;
-
-    // Add all flusher here
-    identity_flusher_wg
-        .add_flusher(Box::new(send_transactions.clone()))
-        .await;
-
-    let rpc = solana_client::nonblocking::rpc_client::RpcClient::new_with_commitment(
-        config.upstream.rpc.clone(),
-        CommitmentConfig::finalized(),
-    );
+    .await?;
     let stake = StakeInfo::new(
-        rpc,
+        config.upstream.rpc.clone(),
         config.upstream.stake_update_interval,
-        quic_identity_man.observe_identity_change(),
+        config.identity.expected,
     );
 
-    let quic_identity_observer = quic_identity_man.observe_signer_change();
+    let quic_identity_observer = quic_identity_man.observe_identity_change();
     // Run RPC admin
     let rpc_admin = RpcServer::new(
         config.listen_admin.bind[0],
@@ -392,12 +361,12 @@ async fn run_highway(config: ConfigHighway) -> anyhow::Result<()> {
 
     tg.spawn_with_shutdown("geyser", |mut stop| async move {
         tokio::select! {
-            result = &mut geyser_handle => {
-                result.expect("geyser handle").expect("geyser result");
+            result = geyser.clone().wait_shutdown() => {
+                result.expect("geyser");
             },
             _ = &mut stop => {
-                let _ = shutdown_geyser_tx.send(());
-                geyser_handle.await.expect("geyser handle").expect("geyser result");
+                geyser.shutdown();
+                geyser.wait_shutdown().await.expect("geyser shutdown");
             },
         }
     });
@@ -426,11 +395,45 @@ async fn run_highway(config: ConfigHighway) -> anyhow::Result<()> {
         }
     });
 
-    tg.spawn_cancelable("rooted_transactions", async move {
-        rooted_tx_loop_fut.await;
+    tg.spawn_with_shutdown("rooted_transactions", |mut stop| async move {
+        tokio::select! {
+            result = rooted_transactions.clone().wait_shutdown() => {
+                result.expect("rooted_transactions");
+            },
+            _ = &mut stop => {
+                rooted_transactions.shutdown();
+                rooted_transactions.wait_shutdown().await.expect("rooted_transactions shutdown");
+            },
+        }
     });
 
-    tg.spawn_cancelable("send_transactions_pool", send_tx_pool_fut);
+    tg.spawn_with_shutdown("send_transactions", |mut stop| async move {
+        tokio::select! {
+            result = send_transactions.clone().wait_shutdown() => {
+                result.expect("send_transactions");
+            },
+            _ = &mut stop => {
+
+                let mut pool_size = metrics::sts_pool_get_size();
+                info!("waiting empty STS pool, size: {pool_size}");
+                loop {
+                    let new_pool_size = metrics::sts_pool_get_size();
+                    if new_pool_size == 0 {
+                        break;
+                    }
+                    if pool_size != new_pool_size {
+                        info!("waiting empty STS pool, size: {pool_size}");
+                        pool_size = new_pool_size;
+                    }
+                    sleep(Duration::from_millis(10)).await;
+                }
+
+                info!("shutdown STS");
+                send_transactions.shutdown();
+                send_transactions.wait_shutdown().await.expect("send_transactions shutdown");
+            },
+        }
+    });
 
     tg.spawn_with_shutdown("stake", |mut stop| async move {
         tokio::select! {
@@ -461,9 +464,11 @@ async fn run_highway(config: ConfigHighway) -> anyhow::Result<()> {
     tg.spawn_cancelable("SIGINT", async move {
         sigint.recv().await;
         info!("SIGINT received...");
+        shutdown_flag.store(true, Ordering::Relaxed);
     });
 
     let (first, result, rest) = tg.wait_one().await.expect("task group empty");
+
     rpc_admin.shutdown();
     rpc_solana_like.shutdown();
 

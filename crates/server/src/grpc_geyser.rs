@@ -2,27 +2,30 @@ use {
     crate::{
         config::ConfigUpstreamGrpc,
         metrics::highway as metrics,
-        util::{fork_oneshot, BlockHeight, CommitmentLevel, IncrementalBackoff},
+        util::{
+            BlockHeight, CommitmentLevel, IncrementalBackoff, WaitShutdown,
+            WaitShutdownJoinHandleResult, WaitShutdownSharedJoinHandle,
+        },
     },
     anyhow::Context,
     futures::{
         future::{try_join, TryFutureExt},
         stream::{Stream, StreamExt},
-        FutureExt,
     },
     maplit::hashmap,
     semver::{Version, VersionReq},
     serde::Deserialize,
     solana_sdk::{clock::Slot, hash::Hash, signature::Signature},
-    std::{collections::BTreeMap, future::Future, sync::Arc, time::Duration},
-    tokio::{
+    std::{
+        collections::BTreeMap,
+        ops::DerefMut,
         sync::{
-            broadcast, mpsc,
-            oneshot::{self, error::TryRecvError},
-            Mutex,
+            atomic::{AtomicBool, Ordering},
+            Arc,
         },
-        task::{JoinError, JoinHandle},
+        time::Duration,
     },
+    tokio::sync::{broadcast, mpsc, Mutex},
     tonic::transport::channel::ClientTlsConfig,
     tracing::{debug, error, info, warn},
     solana_grpc_client::{GeyserGrpcClient, Interceptor},
@@ -68,70 +71,49 @@ pub enum GrpcUpdateMessage {
     Transaction(TransactionReceived),
 }
 
-pub struct GeyserHandle {
-    inner: JoinHandle<anyhow::Result<()>>,
-}
-
-impl Future for GeyserHandle {
-    type Output = Result<anyhow::Result<()>, JoinError>;
-
-    fn poll(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        self.inner.poll_unpin(cx)
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct GeyserSubscriber {
     slots_tx: broadcast::Sender<SlotUpdateInfoWithCommitment>,
     transactions_rx: Arc<Mutex<Option<mpsc::Receiver<GrpcUpdateMessage>>>>,
-    // shutdown_tx: broadcast::Sender<()>,
-    // join_handle: WaitShutdownSharedJoinHandle,
+    shutdown_tx: broadcast::Sender<()>,
+    join_handle: WaitShutdownSharedJoinHandle,
 }
 
-// impl WaitShutdown for GeyserSubscriber {
-//     fn shutdown(&self) {
-//         let _ = self.shutdown_tx.send(());
-//     }
+impl WaitShutdown for GeyserSubscriber {
+    fn shutdown(&self) {
+        let _ = self.shutdown_tx.send(());
+    }
 
-//     async fn wait_shutdown_future(self) -> WaitShutdownJoinHandleResult {
-//         let mut locked = self.join_handle.lock().await;
-//         locked.deref_mut().await
-//     }
-// }
+    async fn wait_shutdown_future(self) -> WaitShutdownJoinHandleResult {
+        let mut locked = self.join_handle.lock().await;
+        locked.deref_mut().await
+    }
+}
 
 impl GeyserSubscriber {
     pub fn new(
-        shutdown_rx: oneshot::Receiver<()>,
+        shutdown_flag: Arc<AtomicBool>,
         primary_grpc: ConfigUpstreamGrpc,
         secondary_grpc: ConfigUpstreamGrpc,
-    ) -> (Self, GeyserHandle) {
-        // let (shutdown_tx, _) = broadcast::channel(1);
+    ) -> Self {
+        let (shutdown_tx, _) = broadcast::channel(1);
 
         let (slots_tx, _) = broadcast::channel(QUEUE_SIZE_SLOT_UPDATE);
         let (transactions_tx, transactions_rx) = mpsc::channel(QUEUE_SIZE_TRANSACTIONS);
 
-        let geyser_handle = tokio::spawn(Self::grpc_subscribe(
-            // Arc::new(AtomicBool::new(false)),
-            // shutdown_tx.clone(),
-            shutdown_rx,
-            primary_grpc,
-            secondary_grpc,
-            slots_tx.clone(),
-            transactions_tx,
-        ));
-        let geyser_handle = GeyserHandle {
-            inner: geyser_handle,
-        };
-
-        let geyser = Self {
+        Self {
             slots_tx: slots_tx.clone(),
             transactions_rx: Arc::new(Mutex::new(Some(transactions_rx))),
-        };
-
-        (geyser, geyser_handle)
+            shutdown_tx: shutdown_tx.clone(),
+            join_handle: Self::spawn(Self::grpc_subscribe(
+                shutdown_flag,
+                shutdown_tx,
+                primary_grpc,
+                secondary_grpc,
+                slots_tx,
+                transactions_tx,
+            )),
+        }
     }
 
     pub fn subscribe_slots(&self) -> broadcast::Receiver<SlotUpdateInfoWithCommitment> {
@@ -143,23 +125,25 @@ impl GeyserSubscriber {
     }
 
     async fn grpc_subscribe(
-        shutdown_rx: oneshot::Receiver<()>,
+        shutdown_flag: Arc<AtomicBool>,
+        shutdown_tx: broadcast::Sender<()>,
         primary_grpc: ConfigUpstreamGrpc,
         secondary_grpc: ConfigUpstreamGrpc,
         slots_tx: broadcast::Sender<SlotUpdateInfoWithCommitment>,
         transactions_tx: mpsc::Sender<GrpcUpdateMessage>,
     ) -> anyhow::Result<()> {
-        let (shutdown1, shutdown2) = fork_oneshot(shutdown_rx);
         try_join(
             Self::grpc_subscribe_primary(
-                shutdown1,
+                Arc::clone(&shutdown_flag),
+                shutdown_tx.subscribe(),
                 primary_grpc.endpoint,
                 primary_grpc.x_token,
                 slots_tx,
                 transactions_tx.clone(),
             ),
             Self::grpc_subscribe_secondary(
-                shutdown2,
+                shutdown_flag,
+                shutdown_tx.subscribe(),
                 secondary_grpc.endpoint,
                 secondary_grpc.x_token,
                 transactions_tx,
@@ -169,9 +153,9 @@ impl GeyserSubscriber {
         Ok(())
     }
 
-    #[allow(unreachable_patterns)]
     async fn grpc_subscribe_primary(
-        mut shutdown_rx: oneshot::Receiver<()>,
+        shutdown_flag: Arc<AtomicBool>,
+        mut shutdown_rx: broadcast::Receiver<()>,
         endpoint: String,
         x_token: Option<String>,
         slots_tx: broadcast::Sender<SlotUpdateInfoWithCommitment>,
@@ -183,15 +167,10 @@ impl GeyserSubscriber {
             metrics::grpc_slot_set(CommitmentLevel::Finalized, 0);
 
             let mut slot_updates = BTreeMap::<Slot, SlotUpdateInfo>::new();
-            let mut stream = tokio::select! {
-                result = Self::grpc_open(&endpoint, x_token.as_deref(), true) => {
-                    result?
-                }
-                _ = &mut shutdown_rx => return Ok(()),
-            };
+            let mut stream = Self::grpc_open(&endpoint, x_token.as_deref(), true).await?;
             loop {
                 let (slot, slot_info, commitment) = tokio::select! {
-                    _ = &mut shutdown_rx => return Ok(()),
+                    _ = shutdown_rx.recv() => return Ok(()),
                     message = stream.next() => match message {
                         Some(Ok(msg)) => match msg.update_oneof {
                             Some(UpdateOneof::Slot(SubscribeUpdateSlot { slot, status, .. })) => {
@@ -202,7 +181,6 @@ impl GeyserSubscriber {
                                     Ok(GrpcCommitmentLevel::Processed) => CommitmentLevel::Processed,
                                     Ok(GrpcCommitmentLevel::Confirmed) => CommitmentLevel::Confirmed,
                                     Ok(GrpcCommitmentLevel::Finalized) => CommitmentLevel::Finalized,
-                                    Ok(_) => continue,
                                     Err(error) => {
                                         anyhow::bail!("gRPC: failed to parse commitment level ({endpoint}): {error:?}")
                                     }
@@ -221,7 +199,7 @@ impl GeyserSubscriber {
                                     })?,
                                 }))
                                 .await
-                                .is_err() && matches!(shutdown_rx.try_recv(), Err(TryRecvError::Empty)) {
+                                .is_err() && !shutdown_flag.load(Ordering::Relaxed) {
                                     anyhow::bail!("gRPC: failed to send transaction status")
                                 }
                                 continue;
@@ -273,7 +251,7 @@ impl GeyserSubscriber {
                         .send(GrpcUpdateMessage::Slot(slot_update))
                         .await
                         .is_err()
-                        && matches!(shutdown_rx.try_recv(), Err(TryRecvError::Empty))
+                        && !shutdown_flag.load(Ordering::Relaxed)
                     {
                         anyhow::bail!("gRPC: failed to send slot update to transactions channel")
                     }
@@ -288,21 +266,17 @@ impl GeyserSubscriber {
     }
 
     async fn grpc_subscribe_secondary(
-        mut shutdown_rx: oneshot::Receiver<()>,
+        shutdown_flag: Arc<AtomicBool>,
+        mut shutdown_rx: broadcast::Receiver<()>,
         endpoint: String,
         x_token: Option<String>,
         transactions_tx: mpsc::Sender<GrpcUpdateMessage>,
     ) -> anyhow::Result<()> {
         loop {
-            let mut stream = tokio::select! {
-                result = Self::grpc_open(&endpoint, x_token.as_deref(), false) => {
-                    result?
-                }
-                _ = &mut shutdown_rx => return Ok(()),
-            };
+            let mut stream = Self::grpc_open(&endpoint, x_token.as_deref(), false).await?;
             loop {
                 tokio::select! {
-                    _ = &mut shutdown_rx => return Ok(()),
+                    _ = shutdown_rx.recv() => return Ok(()),
                     message = stream.next() => match message {
                         Some(Ok(msg)) => match msg.update_oneof {
                             Some(UpdateOneof::TransactionStatus(SubscribeUpdateTransactionStatus {
@@ -317,7 +291,7 @@ impl GeyserSubscriber {
                                     })?,
                                 }))
                                 .await
-                                .is_err() && matches!(shutdown_rx.try_recv(), Err(TryRecvError::Empty)) {
+                                .is_err() && !shutdown_flag.load(Ordering::Relaxed) {
                                     anyhow::bail!("gRPC: failed to send transaction status")
                                 }
                             }

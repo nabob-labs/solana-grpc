@@ -2,28 +2,16 @@ use {
     crate::{
         cluster_tpu_info::TpuInfo,
         config::ConfigQuic,
-        crypto_provider::crypto_provider,
-        metrics::highway::{
-            self as metrics, incr_send_tx_attempt, observe_leader_rtt,
-            observe_send_transaction_e2e_latency, set_leader_mtu,
-        },
+        metrics::highway as metrics,
         util::{PubkeySigner, ValueObserver},
     },
+    futures::future::try_join_all,
     lru::LruCache,
-    quinn::{
-        crypto::rustls::QuicClientConfig, ClientConfig, ConnectError, Connection, ConnectionError,
-        Endpoint, IdleTimeout, StoppedError, TransportConfig, VarInt, WriteError,
-    },
+    quinn::{ConnectError, Connection, ConnectionError, Endpoint, WriteError},
     rand::{thread_rng, Rng},
-    rustls::{
-        client::danger::{HandshakeSignatureValid, ServerCertVerified},
-        crypto::{verify_tls12_signature, verify_tls13_signature, CryptoProvider},
-        pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime},
-        DigitallySignedStruct, Error,
-    },
+    rustls::Certificate,
     solana_sdk::{
         pubkey::Pubkey,
-        quic::QUIC_SEND_FAIRNESS,
         signature::{Keypair, Signer},
     },
     solana_streamer::{
@@ -36,7 +24,7 @@ use {
     },
     tokio::{
         sync::{watch, AcquireError, Mutex, OnceCell, Semaphore},
-        time::{timeout, Instant},
+        time::timeout,
     },
     tracing::{debug, info},
 };
@@ -47,16 +35,11 @@ use {
 /// This is useful if you want to update the identity of a [`ConectionCache`] without restarting the whole application.
 pub struct ConnectionCacheIdentity {
     shared: Arc<Mutex<QuicSessionInner>>,
-    identity_watcher: watch::Sender<Pubkey>,
-    reactive_signer: watch::Sender<PubkeySigner>,
-    identity_flusher: Box<dyn IdentityFlusher + Send + Sync + 'static>,
+    identity_watcher: watch::Sender<PubkeySigner>,
 }
 
 impl ConnectionCacheIdentity {
     pub async fn update_keypair(&self, keypair: &Keypair) {
-        let kp = keypair.insecure_clone();
-        let ps = PubkeySigner::new(kp);
-
         let pubkey = keypair.pubkey();
         let (certificate, privkey) = new_dummy_x509_certificate(keypair);
         let cert = Arc::new(QuicClientCertificate {
@@ -65,24 +48,16 @@ impl ConnectionCacheIdentity {
             certificate,
         });
         let mut locked = self.shared.lock().await;
-
-        // Connection pools actually returned owned connections, so we need to clear them AFTER we acquire the lock.
-        // Otherwise, if we clear connection_pools before the lock, new connection can still be open with the old certificate.
-        // Please note: since we are using Mutex + Owned connection objects this give us several important properties that we must understand:
-        //  1. Previously acquire connection **won't be affected** by the change of the certificate (direct consequence of using Owned connection object through Arc)
-        //  2. New connection will be created with the new certificate.
-        //  3. Because of the lock, all concurrent attempt to connect will block -> this can cause deadlock if we are not cautious.
-        locked.connection_pools.clear();
-
-        metrics::quic_set_identity(cert.pubkey);
-        info!("update QUIC identity: {}", cert.pubkey);
-        self.identity_flusher.flush().await;
+        metrics::quic_set_indetity(cert.pubkey);
+        info!("update QUIC identityc: {}", cert.pubkey);
+        locked.connection_pools.clear(); // drop all previously created connections
         locked.client_certificate = cert;
-        self.reactive_signer.send_replace(ps);
-        self.identity_watcher.send_replace(keypair.pubkey());
+        let kp = keypair.insecure_clone();
+        let ps = PubkeySigner::new(kp);
+        self.identity_watcher.send_replace(ps);
     }
 
-    pub async fn get_cert(&self) -> CertificateDer {
+    pub async fn get_cert(&self) -> Certificate {
         self.shared
             .lock()
             .await
@@ -95,32 +70,9 @@ impl ConnectionCacheIdentity {
         self.shared.lock().await.client_certificate.pubkey
     }
 
-    pub fn observe_identity_change(&self) -> ValueObserver<Pubkey> {
+    pub fn observe_identity_change(&self) -> ValueObserver<PubkeySigner> {
         self.identity_watcher.subscribe().into()
     }
-
-    pub fn observe_signer_change(&self) -> ValueObserver<PubkeySigner> {
-        self.reactive_signer.subscribe().into()
-    }
-}
-
-///
-/// Base Trait for flushing the identity of a [`ConnectionCache`].
-///
-#[async_trait::async_trait]
-pub trait IdentityFlusher {
-    async fn flush(&self);
-}
-
-pub type BoxedIdentityFlusher = Box<dyn IdentityFlusher + Send + Sync + 'static>;
-
-///
-/// IdentityFlusher that does nothing.
-pub struct NullIdentityFlusher;
-
-#[async_trait::async_trait]
-impl IdentityFlusher for NullIdentityFlusher {
-    async fn flush(&self) {}
 }
 
 ///
@@ -133,30 +85,12 @@ pub struct ConnectionCache {
     shared: Arc<Mutex<QuicSessionInner>>,
 }
 
-pub struct ConnectionCacheSendPermit {
-    pub tpu_info: TpuInfo,
-    pub addr: SocketAddr,
-    inner: Arc<QuicClient>,
-}
-
-impl ConnectionCacheSendPermit {
-    pub async fn send_buffer(&self, data: &[u8]) -> Result<(), QuicError> {
-        self.inner.send_buffer(data, &self.tpu_info).await
-    }
-}
-
 impl ConnectionCache {
-    pub fn new<F>(
-        config: ConfigQuic,
-        initial_identity: Keypair,
-        flush_identity: F,
-    ) -> (Self, ConnectionCacheIdentity)
-    where
-        F: IdentityFlusher + Send + Sync + 'static,
-    {
+    pub fn new(config: ConfigQuic, initial_identity: Keypair) -> (Self, ConnectionCacheIdentity) {
+        let initial_keypair_signer = PubkeySigner::new(initial_identity.insecure_clone());
+        let initial_identity_signer = initial_keypair_signer;
         let client_certificate = Self::create_client_certificate(&initial_identity);
-        let initial_signer = PubkeySigner::new(initial_identity.insecure_clone());
-        metrics::quic_set_identity(client_certificate.pubkey);
+        metrics::quic_set_indetity(client_certificate.pubkey);
         info!("generate new QUIC identity: {}", client_certificate.pubkey);
 
         let connection_pools = LruCache::new(config.connection_max_pools);
@@ -164,13 +98,10 @@ impl ConnectionCache {
             client_certificate,
             connection_pools,
         }));
-        let (identity_watcher, _) = watch::channel(initial_identity.pubkey());
-        let (reactive_signer, _) = watch::channel(initial_signer);
+        let (identity_watcher, _) = watch::channel(initial_identity_signer);
         let quic_identity_man = ConnectionCacheIdentity {
             shared: Arc::clone(&shared),
             identity_watcher,
-            reactive_signer,
-            identity_flusher: Box::new(flush_identity),
         };
         let ret = Self {
             config: Arc::new(config),
@@ -187,6 +118,10 @@ impl ConnectionCache {
             privkey,
             certificate,
         })
+    }
+
+    pub async fn get_identity(&self) -> Pubkey {
+        self.shared.lock().await.client_certificate.pubkey
     }
 
     async fn get_connection(&self, addr: SocketAddr) -> Arc<QuicClient> {
@@ -212,18 +147,6 @@ impl ConnectionCache {
         locked.get_connection(addr)
     }
 
-    pub async fn reserve_send_permit(
-        &self,
-        tpu_info: TpuInfo,
-        addr: SocketAddr,
-    ) -> ConnectionCacheSendPermit {
-        ConnectionCacheSendPermit {
-            tpu_info,
-            addr,
-            inner: self.get_connection(addr).await,
-        }
-    }
-
     pub async fn send_buffer(
         &self,
         addr: SocketAddr,
@@ -232,6 +155,16 @@ impl ConnectionCache {
     ) -> Result<(), QuicError> {
         let client = self.get_connection(addr).await;
         client.send_buffer(data, tpu_info).await
+    }
+
+    pub async fn send_batch(
+        &self,
+        addr: SocketAddr,
+        buffers: &[&[u8]],
+        tpu_info: &TpuInfo,
+    ) -> Result<(), QuicError> {
+        let client = self.get_connection(addr).await;
+        client.send_batch(buffers, tpu_info).await
     }
 }
 
@@ -242,8 +175,8 @@ struct QuicSessionInner {
 
 struct QuicClientCertificate {
     pubkey: Pubkey,
-    privkey: PrivateKeyDer<'static>,
-    certificate: CertificateDer<'static>,
+    privkey: rustls::PrivateKey,
+    certificate: rustls::Certificate,
 }
 
 struct QuicPool {
@@ -283,57 +216,20 @@ impl QuicPool {
     }
 }
 
-#[derive(Debug)]
-struct SkipServerVerification(Arc<CryptoProvider>);
+#[derive(Debug, Default)]
+struct SkipServerVerification;
 
-impl SkipServerVerification {
-    pub fn new() -> Arc<Self> {
-        Arc::new(Self(Arc::new(crypto_provider())))
-    }
-}
-
-impl rustls::client::danger::ServerCertVerifier for SkipServerVerification {
-    fn verify_tls12_signature(
-        &self,
-        message: &[u8],
-        cert: &CertificateDer<'_>,
-        dss: &DigitallySignedStruct,
-    ) -> Result<HandshakeSignatureValid, Error> {
-        verify_tls12_signature(
-            message,
-            cert,
-            dss,
-            &self.0.signature_verification_algorithms,
-        )
-    }
-
-    fn verify_tls13_signature(
-        &self,
-        message: &[u8],
-        cert: &CertificateDer<'_>,
-        dss: &DigitallySignedStruct,
-    ) -> Result<HandshakeSignatureValid, Error> {
-        verify_tls13_signature(
-            message,
-            cert,
-            dss,
-            &self.0.signature_verification_algorithms,
-        )
-    }
-
+impl rustls::client::ServerCertVerifier for SkipServerVerification {
     fn verify_server_cert(
         &self,
-        _end_entity: &CertificateDer<'_>,
-        _intermediates: &[CertificateDer<'_>],
-        _server_name: &ServerName,
+        _end_entity: &rustls::Certificate,
+        _intermediates: &[rustls::Certificate],
+        _server_name: &rustls::ServerName,
+        _scts: &mut dyn Iterator<Item = &[u8]>,
         _ocsp_response: &[u8],
-        _now: UnixTime,
-    ) -> Result<ServerCertVerified, Error> {
-        Ok(ServerCertVerified::assertion())
-    }
-
-    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
-        self.0.signature_verification_algorithms.supported_schemes()
+        _now: std::time::SystemTime,
+    ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
+        Ok(rustls::client::ServerCertVerified::assertion())
     }
 }
 
@@ -368,31 +264,24 @@ impl QuicLazyInitializedEndpoint {
         )
         .expect("QuicNewConnection::create_endpoint quinn::Endpoint::new");
 
-        let mut crypto = rustls::ClientConfig::builder_with_provider(Arc::new(crypto_provider()))
-            .with_safe_default_protocol_versions()
-            .expect("Failed to set QUIC client protocol versions")
-            .dangerous()
-            .with_custom_certificate_verifier(SkipServerVerification::new())
+        let mut crypto = rustls::ClientConfig::builder()
+            .with_safe_defaults()
+            .with_custom_certificate_verifier(Arc::new(SkipServerVerification))
             .with_client_auth_cert(
                 vec![self.client_certificate.certificate.clone()],
-                self.client_certificate.privkey.clone_key(),
+                self.client_certificate.privkey.clone(),
             )
             .expect("Failed to set QUIC client certificates");
         crypto.enable_early_data = true;
         crypto.alpn_protocols = vec![ALPN_TPU_PROTOCOL_ID.to_vec()];
 
-        let transport_config = {
-            let mut res = TransportConfig::default();
+        let mut config = quinn::ClientConfig::new(Arc::new(crypto));
+        let mut transport_config = quinn::TransportConfig::default();
 
-            let timeout = IdleTimeout::try_from(self.config.max_idle_timeout).unwrap();
-            res.max_idle_timeout(Some(timeout));
-            res.keep_alive_interval(Some(self.config.keep_alive_interval));
-            res.send_fairness(QUIC_SEND_FAIRNESS);
-
-            res
-        };
-
-        let mut config = ClientConfig::new(Arc::new(QuicClientConfig::try_from(crypto).unwrap()));
+        let timeout = quinn::IdleTimeout::try_from(self.config.max_idle_timeout)
+            .expect("QuicLazyInitializedEndpoint::create_endpoint IdleTimeout::try_from");
+        transport_config.max_idle_timeout(Some(timeout));
+        transport_config.keep_alive_interval(Some(self.config.keep_alive_interval));
         config.transport_config(Arc::new(transport_config));
 
         endpoint.set_default_client_config(config);
@@ -423,10 +312,6 @@ pub enum QuicError {
     ExceedBatchLimit { size: usize, limit: usize },
     #[error(transparent)]
     AcquireFailed(#[from] AcquireError),
-    #[error("0-RTT rejected")]
-    ZeroRttRejected,
-    #[error("stopped failed with error code {0}")]
-    StopErrorCode(VarInt),
 }
 
 impl QuicError {
@@ -443,8 +328,6 @@ impl QuicError {
                 QuicError::IdentityMismatch => "Identity Mismatch",
                 QuicError::ExceedBatchLimit { .. } => "Exceed Batch Limit",
                 QuicError::AcquireFailed(_) => "Acquired Failed",
-                QuicError::ZeroRttRejected => "Zero RTT Rejected",
-                QuicError::StopErrorCode(_) => "Stop Error Code",
             }
         }
         .to_owned()
@@ -520,34 +403,10 @@ impl QuicClient {
     async fn send_buffer_using_conn(connection: &Connection, data: &[u8]) -> Result<(), QuicError> {
         let mut send_stream = connection.open_uni().await?;
         send_stream.write_all(data).await?;
-        // Finish sets FIN bit in the last Frame, which is a signal that the stream is done sending data.
-        // You must call finish before stopped underwise the reader won't ever know you finished and will make
-        // `stopped` called wait forever.
-        // Finish should never return an error since the stream is created and end within the same function.
-        // It is impossible this function is called twice on the same stream.
-        // Finish error happen if the stream has already been closed.
-        send_stream.finish().expect("finish failed");
-        // Make sure we the remote side has acknowledged all the data we sent
-        // This stopped may timeout if the remote side is not responding after MAX_CONNECTION_IDLE_TIMEOUT
-        send_stream
-            .stopped()
-            .await
-            .map_err(|e| match e {
-                StoppedError::ConnectionLost(e2) => e2.into(),
-                StoppedError::ZeroRttRejected => QuicError::ZeroRttRejected,
-            })
-            .and_then(|maybe| {
-                match maybe {
-                    None => Ok(()),
-                    Some(error_code) => {
-                        // If we get here, it is not guaranteed that the remote side has received all the data we sent.
-                        // Even if we get 0x00 (NO_ERROR) QUIC error code.
-                        // NO_ERROR = the receiver close abruptly the connection.
-                        // In rust, if the Recv object is dropped before reading all the data, it should return NO_ERROR.
-                        Err(QuicError::StopErrorCode(error_code))
-                    }
-                }
-            })
+        // https://github.com/anza-xyz/agave/pull/2905#issuecomment-2356530294
+        // stream will be finished when dropped. Finishing here explicitly would lead to blocking.
+        // send_stream.finish().await.map_err(Into::into)
+        Ok(())
     }
 
     // Attempts to send data, connecting/reconnecting as necessary
@@ -636,17 +495,8 @@ impl QuicClient {
             }
 
             last_connection_id = connection.stable_id();
-            let path_stats = connection.stats().path;
-            let current_mut = path_stats.current_mtu;
-            set_leader_mtu(tpu_info.leader, current_mut);
-            observe_leader_rtt(tpu_info.leader, path_stats.rtt);
 
-            let t = Instant::now();
-            let quic_result = Self::send_buffer_using_conn(&connection, data).await;
-            let elapsed = t.elapsed();
-            observe_send_transaction_e2e_latency(tpu_info.leader, elapsed);
-            incr_send_tx_attempt(tpu_info.leader);
-            return match quic_result {
+            return match Self::send_buffer_using_conn(&connection, data).await {
                 Ok(()) => {
                     debug!(
                         tpu.leader = %tpu_info.leader,
@@ -686,6 +536,46 @@ impl QuicClient {
     pub async fn send_buffer(&self, data: &[u8], tpu_info: &TpuInfo) -> Result<(), QuicError> {
         let _permit = self.sem.acquire().await?;
         let _connection = self.send_buffer_retry(data, tpu_info).await?;
+        Ok(())
+    }
+
+    pub async fn send_batch(&self, buffers: &[&[u8]], tpu_info: &TpuInfo) -> Result<(), QuicError> {
+        if buffers.len() > self.endpoint.config.send_max_concurrent_streams {
+            return Err(QuicError::ExceedBatchLimit {
+                size: buffers.len(),
+                limit: self.endpoint.config.send_max_concurrent_streams,
+            });
+        }
+
+        // Start off by "testing" the connection by sending the first buffer
+        // This will also connect to the server if not already connected
+        // and reconnect and retry if the first send attempt failed
+        // (for example due to a timed out connection), returning an error
+        // or the connection that was used to successfully send the buffer.
+        // We will use the returned connection to send the rest of the buffers in the batch
+        // to avoid touching the mutex in self, and not bother reconnecting if we fail along the way
+        // since testing even in the ideal GCE environment has found no cases
+        // where reconnecting and retrying in the middle of a batch send
+        // (i.e. we encounter a connection error in the middle of a batch send, which presumably cannot
+        // be due to a timed out connection) has succeeded
+        if buffers.is_empty() {
+            return Ok(());
+        }
+
+        let _permit = self.sem.acquire_many(buffers.len() as u32);
+        let connection = self.send_buffer_retry(buffers[0], tpu_info).await?;
+
+        // Used to avoid dereferencing the Arc multiple times below
+        // by just getting a reference to the NewConnection once
+        let connection_ref: &Connection = &connection;
+
+        try_join_all(
+            buffers[1..]
+                .iter()
+                .map(|buffer| Self::send_buffer_using_conn(connection_ref, buffer)),
+        )
+        .await?;
+
         Ok(())
     }
 }

@@ -11,8 +11,9 @@ fn main() -> anyhow::Result<()> {
         "cargo:rustc-env=GIT_VERSION={}",
         git_version::git_version!()
     );
+
     // Extract packages version
-    let lockfile = Lockfile::load("../../Cargo.lock").expect("load lockfile not found");
+    let lockfile = Lockfile::load("../../Cargo.lock")?;
     println!(
         "cargo:rustc-env=SOLANA_SDK_VERSION={}",
         get_pkg_version(&lockfile, "solana-sdk")

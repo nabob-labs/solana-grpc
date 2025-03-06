@@ -26,7 +26,7 @@ use {
             },
             message::{
                 CommitmentLevel, Message, MessageAccount, MessageBlock, MessageBlockMeta,
-                MessageEntry, MessageSlot, MessageTransaction, SlotStatus,
+                MessageEntry, MessageSlot, MessageTransaction,
             },
         },
     },
@@ -170,19 +170,9 @@ impl Filter {
 
     fn decode_commitment(commitment: Option<i32>) -> FilterResult<CommitmentLevel> {
         let commitment = commitment.unwrap_or(CommitmentLevelProto::Processed as i32);
-        let commitment = CommitmentLevelProto::try_from(commitment)
+        CommitmentLevelProto::try_from(commitment)
             .map(Into::into)
-            .map_err(|_error| FilterError::InvalidCommitment { commitment })?;
-        if !matches!(
-            commitment,
-            CommitmentLevel::Processed | CommitmentLevel::Confirmed | CommitmentLevel::Finalized
-        ) {
-            Err(FilterError::InvalidCommitment {
-                commitment: commitment as i32,
-            })
-        } else {
-            Ok(commitment)
-        }
+            .map_err(|_error| FilterError::InvalidCommitment { commitment })
     }
 
     fn decode_pubkeys<'a>(
@@ -591,14 +581,12 @@ impl<'a> FilterAccountsMatch<'a> {
 #[derive(Debug, Default, Clone, Copy)]
 struct FilterSlotsInner {
     filter_by_commitment: bool,
-    interslot_updates: bool,
 }
 
 impl FilterSlotsInner {
     fn new(filter: SubscribeRequestFilterSlots) -> Self {
         Self {
             filter_by_commitment: filter.filter_by_commitment.unwrap_or_default(),
-            interslot_updates: filter.interslot_updates.unwrap_or_default(),
         }
     }
 }
@@ -637,16 +625,7 @@ impl FilterSlots {
             .filters
             .iter()
             .filter_map(|(name, inner)| {
-                if (!inner.filter_by_commitment
-                    || commitment
-                        .map(|commitment| commitment == message.status)
-                        .unwrap_or(false))
-                    && (inner.interslot_updates
-                        || matches!(
-                            message.status,
-                            SlotStatus::Processed | SlotStatus::Confirmed | SlotStatus::Finalized
-                        ))
-                {
+                if !inner.filter_by_commitment || commitment == Some(message.status) {
                     Some(name.clone())
                 } else {
                     None
@@ -655,7 +634,7 @@ impl FilterSlots {
             .collect::<FilteredUpdateFilters>();
         filtered_updates_once_owned!(
             filters,
-            FilteredUpdateOneof::slot(message.clone()),
+            FilteredUpdateOneof::slot(*message),
             message.created_at
         )
     }
@@ -1051,7 +1030,7 @@ impl FilterAccountsDataSlice {
         Ok(Self::new_unchecked(Arc::new(slices)))
     }
 
-    pub const fn new_unchecked(slices: Arc<Vec<Range<usize>>>) -> Self {
+    pub fn new_unchecked(slices: Arc<Vec<Range<usize>>>) -> Self {
         Self(slices)
     }
 
@@ -1098,6 +1077,522 @@ impl FilterAccountsDataSlice {
                     }
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use {
+        super::Filter,
+        crate::{
+            convert_to,
+            geyser::{
+                SubscribeRequest, SubscribeRequestFilterAccounts,
+                SubscribeRequestFilterTransactions,
+            },
+            plugin::{
+                filter::{
+                    limits::FilterLimits,
+                    message::{FilteredUpdateFilters, FilteredUpdateOneof},
+                    name::{FilterName, FilterNames},
+                },
+                message::{Message, MessageTransaction, MessageTransactionInfo},
+            },
+        },
+        prost_types::Timestamp,
+        solana_sdk::{
+            hash::Hash,
+            message::{v0::LoadedAddresses, Message as SolMessage, MessageHeader},
+            pubkey::Pubkey,
+            signer::{keypair::Keypair, Signer},
+            transaction::{SanitizedTransaction, Transaction},
+        },
+        solana_transaction_status::TransactionStatusMeta,
+        std::{
+            collections::HashMap,
+            sync::Arc,
+            time::{Duration, SystemTime},
+        },
+    };
+
+    fn create_filter_names() -> FilterNames {
+        FilterNames::new(64, 1024, Duration::from_secs(1))
+    }
+
+    fn create_message_transaction(
+        keypair: &Keypair,
+        account_keys: Vec<Pubkey>,
+    ) -> MessageTransaction {
+        let message = SolMessage {
+            header: MessageHeader {
+                num_required_signatures: 1,
+                ..MessageHeader::default()
+            },
+            account_keys,
+            ..SolMessage::default()
+        };
+        let recent_blockhash = Hash::default();
+        let sanitized_transaction = SanitizedTransaction::from_transaction_for_tests(
+            Transaction::new(&[keypair], message, recent_blockhash),
+        );
+        let meta = convert_to::create_transaction_meta(&TransactionStatusMeta {
+            status: Ok(()),
+            fee: 0,
+            pre_balances: vec![],
+            post_balances: vec![],
+            inner_instructions: None,
+            log_messages: None,
+            pre_token_balances: None,
+            post_token_balances: None,
+            rewards: None,
+            loaded_addresses: LoadedAddresses::default(),
+            return_data: None,
+            compute_units_consumed: None,
+        });
+        let sig = sanitized_transaction.signature();
+        let account_keys = sanitized_transaction
+            .message()
+            .account_keys()
+            .iter()
+            .copied()
+            .collect();
+        MessageTransaction {
+            transaction: Arc::new(MessageTransactionInfo {
+                signature: *sig,
+                is_vote: true,
+                transaction: convert_to::create_transaction(&sanitized_transaction),
+                meta,
+                index: 1,
+                account_keys,
+            }),
+            slot: 100,
+            created_at: Timestamp::from(SystemTime::now()),
+        }
+    }
+
+    #[test]
+    fn test_filters_all_empty() {
+        // ensure Filter can be created with empty values
+        let config = SubscribeRequest {
+            accounts: HashMap::new(),
+            slots: HashMap::new(),
+            transactions: HashMap::new(),
+            transactions_status: HashMap::new(),
+            blocks: HashMap::new(),
+            blocks_meta: HashMap::new(),
+            entry: HashMap::new(),
+            commitment: None,
+            accounts_data_slice: Vec::new(),
+            ping: None,
+            from_slot: None,
+        };
+        let limit = FilterLimits::default();
+        let filter = Filter::new(&config, &limit, &mut create_filter_names());
+        assert!(filter.is_ok());
+    }
+
+    #[test]
+    fn test_filters_account_empty() {
+        let mut accounts = HashMap::new();
+
+        accounts.insert(
+            "solend".to_owned(),
+            SubscribeRequestFilterAccounts {
+                nonempty_txn_signature: None,
+                account: vec![],
+                owner: vec![],
+                filters: vec![],
+            },
+        );
+
+        let config = SubscribeRequest {
+            accounts,
+            slots: HashMap::new(),
+            transactions: HashMap::new(),
+            transactions_status: HashMap::new(),
+            blocks: HashMap::new(),
+            blocks_meta: HashMap::new(),
+            entry: HashMap::new(),
+            commitment: None,
+            accounts_data_slice: Vec::new(),
+            ping: None,
+            from_slot: None,
+        };
+        let mut limit = FilterLimits::default();
+        limit.accounts.any = false;
+        let filter = Filter::new(&config, &limit, &mut create_filter_names());
+        // filter should fail
+        assert!(filter.is_err());
+    }
+
+    #[test]
+    fn test_filters_transaction_empty() {
+        let mut transactions = HashMap::new();
+
+        transactions.insert(
+            "serum".to_string(),
+            SubscribeRequestFilterTransactions {
+                vote: None,
+                failed: None,
+                signature: None,
+                account_include: vec![],
+                account_exclude: vec![],
+                account_required: vec![],
+            },
+        );
+
+        let config = SubscribeRequest {
+            accounts: HashMap::new(),
+            slots: HashMap::new(),
+            transactions,
+            transactions_status: HashMap::new(),
+            blocks: HashMap::new(),
+            blocks_meta: HashMap::new(),
+            entry: HashMap::new(),
+            commitment: None,
+            accounts_data_slice: Vec::new(),
+            ping: None,
+            from_slot: None,
+        };
+        let mut limit = FilterLimits::default();
+        limit.transactions.any = false;
+        let filter = Filter::new(&config, &limit, &mut create_filter_names());
+        // filter should fail
+        assert!(filter.is_err());
+    }
+
+    #[test]
+    fn test_filters_transaction_not_null() {
+        let mut transactions = HashMap::new();
+        transactions.insert(
+            "serum".to_string(),
+            SubscribeRequestFilterTransactions {
+                vote: Some(true),
+                failed: None,
+                signature: None,
+                account_include: vec![],
+                account_exclude: vec![],
+                account_required: vec![],
+            },
+        );
+
+        let config = SubscribeRequest {
+            accounts: HashMap::new(),
+            slots: HashMap::new(),
+            transactions,
+            transactions_status: HashMap::new(),
+            blocks: HashMap::new(),
+            blocks_meta: HashMap::new(),
+            entry: HashMap::new(),
+            commitment: None,
+            accounts_data_slice: Vec::new(),
+            ping: None,
+            from_slot: None,
+        };
+        let mut limit = FilterLimits::default();
+        limit.transactions.any = false;
+        let filter_res = Filter::new(&config, &limit, &mut create_filter_names());
+        // filter should succeed
+        assert!(filter_res.is_ok());
+    }
+
+    #[test]
+    fn test_transaction_include_a() {
+        let mut transactions = HashMap::new();
+
+        let keypair_a = Keypair::new();
+        let account_key_a = keypair_a.pubkey();
+        let keypair_b = Keypair::new();
+        let account_key_b = keypair_b.pubkey();
+        let account_include = [account_key_a].iter().map(|k| k.to_string()).collect();
+        transactions.insert(
+            "serum".to_string(),
+            SubscribeRequestFilterTransactions {
+                vote: None,
+                failed: None,
+                signature: None,
+                account_include,
+                account_exclude: vec![],
+                account_required: vec![],
+            },
+        );
+
+        let mut config = SubscribeRequest {
+            accounts: HashMap::new(),
+            slots: HashMap::new(),
+            transactions: transactions.clone(),
+            transactions_status: HashMap::new(),
+            blocks: HashMap::new(),
+            blocks_meta: HashMap::new(),
+            entry: HashMap::new(),
+            commitment: None,
+            accounts_data_slice: Vec::new(),
+            ping: None,
+            from_slot: None,
+        };
+        let limit = FilterLimits::default();
+        let filter = Filter::new(&config, &limit, &mut create_filter_names()).unwrap();
+
+        let message_transaction =
+            create_message_transaction(&keypair_b, vec![account_key_b, account_key_a]);
+        let message = Message::Transaction(message_transaction);
+        let updates = filter.get_updates(&message, None);
+        assert_eq!(updates.len(), 1);
+        assert_eq!(
+            updates[0].filters,
+            FilteredUpdateFilters::from_vec(vec![FilterName::new("serum")])
+        );
+        assert!(matches!(
+            updates[0].message,
+            FilteredUpdateOneof::Transaction(_)
+        ));
+
+        config.transactions_status = transactions;
+        let filter = Filter::new(&config, &limit, &mut create_filter_names()).unwrap();
+        let updates = filter.get_updates(&message, None);
+        assert_eq!(updates.len(), 2);
+        assert_eq!(
+            updates[1].filters,
+            FilteredUpdateFilters::from_vec(vec![FilterName::new("serum")])
+        );
+        assert!(matches!(
+            updates[1].message,
+            FilteredUpdateOneof::TransactionStatus(_)
+        ));
+    }
+
+    #[test]
+    fn test_transaction_include_b() {
+        let mut transactions = HashMap::new();
+
+        let keypair_a = Keypair::new();
+        let account_key_a = keypair_a.pubkey();
+        let keypair_b = Keypair::new();
+        let account_key_b = keypair_b.pubkey();
+        let account_include = [account_key_b].iter().map(|k| k.to_string()).collect();
+        transactions.insert(
+            "serum".to_string(),
+            SubscribeRequestFilterTransactions {
+                vote: None,
+                failed: None,
+                signature: None,
+                account_include,
+                account_exclude: vec![],
+                account_required: vec![],
+            },
+        );
+
+        let mut config = SubscribeRequest {
+            accounts: HashMap::new(),
+            slots: HashMap::new(),
+            transactions: transactions.clone(),
+            transactions_status: HashMap::new(),
+            blocks: HashMap::new(),
+            blocks_meta: HashMap::new(),
+            entry: HashMap::new(),
+            commitment: None,
+            accounts_data_slice: Vec::new(),
+            ping: None,
+            from_slot: None,
+        };
+        let limit = FilterLimits::default();
+        let filter = Filter::new(&config, &limit, &mut create_filter_names()).unwrap();
+
+        let message_transaction =
+            create_message_transaction(&keypair_b, vec![account_key_b, account_key_a]);
+        let message = Message::Transaction(message_transaction);
+        let updates = filter.get_updates(&message, None);
+        assert_eq!(updates.len(), 1);
+        assert_eq!(
+            updates[0].filters,
+            FilteredUpdateFilters::from_vec(vec![FilterName::new("serum")])
+        );
+        assert!(matches!(
+            updates[0].message,
+            FilteredUpdateOneof::Transaction(_)
+        ));
+
+        config.transactions_status = transactions;
+        let filter = Filter::new(&config, &limit, &mut create_filter_names()).unwrap();
+        let updates = filter.get_updates(&message, None);
+        assert_eq!(updates.len(), 2);
+        assert_eq!(
+            updates[1].filters,
+            FilteredUpdateFilters::from_vec(vec![FilterName::new("serum")])
+        );
+        assert!(matches!(
+            updates[1].message,
+            FilteredUpdateOneof::TransactionStatus(_)
+        ));
+    }
+
+    #[test]
+    fn test_transaction_exclude() {
+        let mut transactions = HashMap::new();
+
+        let keypair_a = Keypair::new();
+        let account_key_a = keypair_a.pubkey();
+        let keypair_b = Keypair::new();
+        let account_key_b = keypair_b.pubkey();
+        let account_exclude = [account_key_b].iter().map(|k| k.to_string()).collect();
+        transactions.insert(
+            "serum".to_string(),
+            SubscribeRequestFilterTransactions {
+                vote: None,
+                failed: None,
+                signature: None,
+                account_include: vec![],
+                account_exclude,
+                account_required: vec![],
+            },
+        );
+
+        let config = SubscribeRequest {
+            accounts: HashMap::new(),
+            slots: HashMap::new(),
+            transactions,
+            transactions_status: HashMap::new(),
+            blocks: HashMap::new(),
+            blocks_meta: HashMap::new(),
+            entry: HashMap::new(),
+            commitment: None,
+            accounts_data_slice: Vec::new(),
+            ping: None,
+            from_slot: None,
+        };
+        let limit = FilterLimits::default();
+        let filter = Filter::new(&config, &limit, &mut create_filter_names()).unwrap();
+
+        let message_transaction =
+            create_message_transaction(&keypair_b, vec![account_key_b, account_key_a]);
+        let message = Message::Transaction(message_transaction);
+        for message in filter.get_updates(&message, None) {
+            assert!(message.filters.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_transaction_required_x_include_y_z_case001() {
+        let mut transactions = HashMap::new();
+
+        let keypair_x = Keypair::new();
+        let account_key_x = keypair_x.pubkey();
+        let account_key_y = Pubkey::new_unique();
+        let account_key_z = Pubkey::new_unique();
+
+        // require x, include y, z
+        let account_include = [account_key_y, account_key_z]
+            .iter()
+            .map(|k| k.to_string())
+            .collect();
+        let account_required = [account_key_x].iter().map(|k| k.to_string()).collect();
+        transactions.insert(
+            "serum".to_string(),
+            SubscribeRequestFilterTransactions {
+                vote: None,
+                failed: None,
+                signature: None,
+                account_include,
+                account_exclude: vec![],
+                account_required,
+            },
+        );
+
+        let mut config = SubscribeRequest {
+            accounts: HashMap::new(),
+            slots: HashMap::new(),
+            transactions: transactions.clone(),
+            transactions_status: HashMap::new(),
+            blocks: HashMap::new(),
+            blocks_meta: HashMap::new(),
+            entry: HashMap::new(),
+            commitment: None,
+            accounts_data_slice: Vec::new(),
+            ping: None,
+            from_slot: None,
+        };
+        let limit = FilterLimits::default();
+        let filter = Filter::new(&config, &limit, &mut create_filter_names()).unwrap();
+
+        let message_transaction = create_message_transaction(
+            &keypair_x,
+            vec![account_key_x, account_key_y, account_key_z],
+        );
+        let message = Message::Transaction(message_transaction);
+        let updates = filter.get_updates(&message, None);
+        assert_eq!(updates.len(), 1);
+        assert_eq!(
+            updates[0].filters,
+            FilteredUpdateFilters::from_vec(vec![FilterName::new("serum")])
+        );
+        assert!(matches!(
+            updates[0].message,
+            FilteredUpdateOneof::Transaction(_)
+        ));
+
+        config.transactions_status = transactions;
+        let filter = Filter::new(&config, &limit, &mut create_filter_names()).unwrap();
+        let updates = filter.get_updates(&message, None);
+        assert_eq!(updates.len(), 2);
+        assert_eq!(
+            updates[1].filters,
+            FilteredUpdateFilters::from_vec(vec![FilterName::new("serum")])
+        );
+        assert!(matches!(
+            updates[1].message,
+            FilteredUpdateOneof::TransactionStatus(_)
+        ));
+    }
+
+    #[test]
+    fn test_transaction_required_y_z_include_x() {
+        let mut transactions = HashMap::new();
+
+        let keypair_x = Keypair::new();
+        let account_key_x = keypair_x.pubkey();
+        let account_key_y = Pubkey::new_unique();
+        let account_key_z = Pubkey::new_unique();
+
+        // require x, include y, z
+        let account_include = [account_key_x].iter().map(|k| k.to_string()).collect();
+        let account_required = [account_key_y, account_key_z]
+            .iter()
+            .map(|k| k.to_string())
+            .collect();
+        transactions.insert(
+            "serum".to_string(),
+            SubscribeRequestFilterTransactions {
+                vote: None,
+                failed: None,
+                signature: None,
+                account_include,
+                account_exclude: vec![],
+                account_required,
+            },
+        );
+
+        let config = SubscribeRequest {
+            accounts: HashMap::new(),
+            slots: HashMap::new(),
+            transactions,
+            transactions_status: HashMap::new(),
+            blocks: HashMap::new(),
+            blocks_meta: HashMap::new(),
+            entry: HashMap::new(),
+            commitment: None,
+            accounts_data_slice: Vec::new(),
+            ping: None,
+            from_slot: None,
+        };
+        let limit = FilterLimits::default();
+        let filter = Filter::new(&config, &limit, &mut create_filter_names()).unwrap();
+
+        let message_transaction =
+            create_message_transaction(&keypair_x, vec![account_key_x, account_key_z]);
+        let message = Message::Transaction(message_transaction);
+        for message in filter.get_updates(&message, None) {
+            assert!(message.filters.is_empty());
         }
     }
 }

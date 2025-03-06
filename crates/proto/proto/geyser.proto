@@ -21,16 +21,6 @@ enum CommitmentLevel {
   FINALIZED = 2;
 }
 
-enum SlotStatus {
-  SLOT_PROCESSED = 0;
-  SLOT_CONFIRMED = 1;
-  SLOT_FINALIZED = 2;
-  SLOT_FIRST_SHRED_RECEIVED = 3;
-  SLOT_COMPLETED = 4;
-  SLOT_CREATED_BANK = 5;
-  SLOT_DEAD = 6;
-}
-
 message SubscribeRequest {
   map<string, SubscribeRequestFilterAccounts> accounts = 1;
   map<string, SubscribeRequestFilterSlots> slots = 2;
@@ -81,7 +71,6 @@ message SubscribeRequestFilterAccountsFilterLamports {
 
 message SubscribeRequestFilterSlots {
   optional bool filter_by_commitment = 1;
-  optional bool interslot_updates = 2;
 }
 
 message SubscribeRequestFilterTransactions {
@@ -149,8 +138,7 @@ message SubscribeUpdateAccountInfo {
 message SubscribeUpdateSlot {
   uint64 slot = 1;
   optional uint64 parent = 2;
-  SlotStatus status = 3;
-  optional string dead_error = 4;
+  CommitmentLevel status = 3;
 }
 
 message SubscribeUpdateTransaction {

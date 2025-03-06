@@ -216,10 +216,7 @@ impl ClusterTpuInfo {
             let slot_offset =
                 epoch_schedule.get_first_slot_in_epoch(epoch_schedule.get_epoch(slot));
             loop {
-                tokio::select! {
-                    _ = shutdown.notified() => return Ok(()),
-                    _ = backoff.maybe_tick() => {}
-                }
+                backoff.maybe_tick().await;
 
                 let ts = Instant::now();
                 match rpc.get_leader_schedule(Some(slot)).await {
@@ -288,10 +285,7 @@ impl ClusterTpuInfo {
         let mut backoff = IncrementalBackoff::default();
         let rpc = RpcClient::new(rpc);
         loop {
-            tokio::select! {
-                _ = shutdown.notified() => return Ok(()),
-                _ = backoff.maybe_tick() => {}
-            }
+            backoff.maybe_tick().await;
 
             let ts = Instant::now();
             let nodes = match rpc.get_cluster_nodes().await {

@@ -1,6 +1,6 @@
 use {
     crate::{config::ConfigPrometheus, version::VERSION as VERSION_INFO},
-    solana_geyser_plugin_interface::geyser_plugin_interface::SlotStatus as GeyserSlosStatus,
+    solana_geyser_plugin_interface::geyser_plugin_interface::SlotStatus,
     http_body_util::{combinators::BoxBody, BodyExt, Empty as BodyEmpty, Full as BodyFull},
     hyper::{
         body::{Bytes, Incoming as BodyIncoming},
@@ -24,7 +24,7 @@ use {
         sync::{mpsc, oneshot, Notify},
         task::JoinHandle,
     },
-    solana_grpc_proto::plugin::{filter::Filter, message::SlotStatus},
+    solana_grpc_proto::plugin::{filter::Filter, message::CommitmentLevel},
 };
 
 lazy_static::lazy_static! {
@@ -314,15 +314,19 @@ fn not_found_handler() -> http::Result<Response<BoxBody<Bytes, Infallible>>> {
         .body(BodyEmpty::new().boxed())
 }
 
-pub fn update_slot_status(status: &GeyserSlosStatus, slot: u64) {
+pub fn update_slot_status(status: SlotStatus, slot: u64) {
     SLOT_STATUS
-        .with_label_values(&[status.as_str()])
+        .with_label_values(&[match status {
+            SlotStatus::Processed => "processed",
+            SlotStatus::Confirmed => "confirmed",
+            SlotStatus::Rooted => "finalized",
+        }])
         .set(slot as i64);
 }
 
-pub fn update_slot_plugin_status(status: SlotStatus, slot: u64) {
+pub fn update_slot_plugin_status(status: CommitmentLevel, slot: u64) {
     SLOT_STATUS_PLUGIN
-        .with_label_values(&[status.as_str()])
+        .with_label_values(&[commitment_level_as_str(status)])
         .set(slot as i64);
 }
 
@@ -365,8 +369,16 @@ pub fn update_subscriptions(endpoint: &str, old: Option<&Filter>, new: Option<&F
     }
 }
 
-pub fn missed_status_message_inc(status: SlotStatus) {
+pub fn missed_status_message_inc(status: CommitmentLevel) {
     MISSED_STATUS_MESSAGE
-        .with_label_values(&[status.as_str()])
+        .with_label_values(&[commitment_level_as_str(status)])
         .inc()
+}
+
+const fn commitment_level_as_str(commitment: CommitmentLevel) -> &'static str {
+    match commitment {
+        CommitmentLevel::Processed => "processed",
+        CommitmentLevel::Confirmed => "confirmed",
+        CommitmentLevel::Finalized => "finalized",
+    }
 }

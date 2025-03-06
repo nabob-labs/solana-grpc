@@ -3,17 +3,17 @@ use {
         convert_to,
         geyser::{
             subscribe_update::UpdateOneof, CommitmentLevel as CommitmentLevelProto,
-            SlotStatus as SlotStatusProto, SubscribeUpdateAccount, SubscribeUpdateAccountInfo,
-            SubscribeUpdateBlock, SubscribeUpdateBlockMeta, SubscribeUpdateEntry,
-            SubscribeUpdateSlot, SubscribeUpdateTransaction, SubscribeUpdateTransactionInfo,
+            SubscribeUpdateAccount, SubscribeUpdateAccountInfo, SubscribeUpdateBlock,
+            SubscribeUpdateBlockMeta, SubscribeUpdateEntry, SubscribeUpdateSlot,
+            SubscribeUpdateTransaction, SubscribeUpdateTransactionInfo,
         },
         solana::storage::confirmed_block,
     },
+    prost_types::Timestamp,
     solana_geyser_plugin_interface::geyser_plugin_interface::{
         ReplicaAccountInfoV3, ReplicaBlockInfoV4, ReplicaEntryInfoV2, ReplicaTransactionInfoV2,
-        SlotStatus as GeyserSlotStatus,
+        SlotStatus,
     },
-    prost_types::Timestamp,
     solana_sdk::{
         clock::Slot,
         hash::{Hash, HASH_BYTES},
@@ -37,6 +37,16 @@ pub enum CommitmentLevel {
     Finalized,
 }
 
+impl From<SlotStatus> for CommitmentLevel {
+    fn from(status: SlotStatus) -> Self {
+        match status {
+            SlotStatus::Processed => Self::Processed,
+            SlotStatus::Confirmed => Self::Confirmed,
+            SlotStatus::Rooted => Self::Finalized,
+        }
+    }
+}
+
 impl From<CommitmentLevel> for CommitmentLevelProto {
     fn from(commitment: CommitmentLevel) -> Self {
         match commitment {
@@ -57,114 +67,20 @@ impl From<CommitmentLevelProto> for CommitmentLevel {
     }
 }
 
-impl CommitmentLevel {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Processed => "processed",
-            Self::Confirmed => "confirmed",
-            Self::Finalized => "finalized",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum SlotStatus {
-    Processed,
-    Confirmed,
-    Finalized,
-    FirstShredReceived,
-    Completed,
-    CreatedBank,
-    Dead,
-}
-
-impl From<&GeyserSlotStatus> for SlotStatus {
-    fn from(status: &GeyserSlotStatus) -> Self {
-        match status {
-            GeyserSlotStatus::Processed => Self::Processed,
-            GeyserSlotStatus::Confirmed => Self::Confirmed,
-            GeyserSlotStatus::Rooted => Self::Finalized,
-            GeyserSlotStatus::FirstShredReceived => Self::FirstShredReceived,
-            GeyserSlotStatus::Completed => Self::Completed,
-            GeyserSlotStatus::CreatedBank => Self::CreatedBank,
-            GeyserSlotStatus::Dead(_error) => Self::Dead,
-        }
-    }
-}
-
-impl From<SlotStatusProto> for SlotStatus {
-    fn from(status: SlotStatusProto) -> Self {
-        match status {
-            SlotStatusProto::SlotProcessed => Self::Processed,
-            SlotStatusProto::SlotConfirmed => Self::Confirmed,
-            SlotStatusProto::SlotFinalized => Self::Finalized,
-            SlotStatusProto::SlotFirstShredReceived => Self::FirstShredReceived,
-            SlotStatusProto::SlotCompleted => Self::Completed,
-            SlotStatusProto::SlotCreatedBank => Self::CreatedBank,
-            SlotStatusProto::SlotDead => Self::Dead,
-        }
-    }
-}
-
-impl From<SlotStatus> for SlotStatusProto {
-    fn from(status: SlotStatus) -> Self {
-        match status {
-            SlotStatus::Processed => Self::SlotProcessed,
-            SlotStatus::Confirmed => Self::SlotConfirmed,
-            SlotStatus::Finalized => Self::SlotFinalized,
-            SlotStatus::FirstShredReceived => Self::SlotFirstShredReceived,
-            SlotStatus::Completed => Self::SlotCompleted,
-            SlotStatus::CreatedBank => Self::SlotCreatedBank,
-            SlotStatus::Dead => Self::SlotDead,
-        }
-    }
-}
-
-impl PartialEq<SlotStatus> for CommitmentLevel {
-    fn eq(&self, other: &SlotStatus) -> bool {
-        match self {
-            Self::Processed if *other == SlotStatus::Processed => true,
-            Self::Confirmed if *other == SlotStatus::Confirmed => true,
-            Self::Finalized if *other == SlotStatus::Finalized => true,
-            _ => false,
-        }
-    }
-}
-
-impl SlotStatus {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Processed => "processed",
-            Self::Confirmed => "confirmed",
-            Self::Finalized => "finalized",
-            Self::FirstShredReceived => "first_shread_received",
-            Self::Completed => "completed",
-            Self::CreatedBank => "created_bank",
-            Self::Dead => "dead",
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MessageSlot {
     pub slot: Slot,
     pub parent: Option<Slot>,
-    pub status: SlotStatus,
-    pub dead_error: Option<String>,
+    pub status: CommitmentLevel,
     pub created_at: Timestamp,
 }
 
 impl MessageSlot {
-    pub fn from_geyser(slot: Slot, parent: Option<Slot>, status: &GeyserSlotStatus) -> Self {
+    pub fn from_geyser(slot: Slot, parent: Option<Slot>, status: SlotStatus) -> Self {
         Self {
             slot,
             parent,
             status: status.into(),
-            dead_error: if let GeyserSlotStatus::Dead(error) = status {
-                Some(error.clone())
-            } else {
-                None
-            },
             created_at: Timestamp::from(SystemTime::now()),
         }
     }
@@ -176,10 +92,9 @@ impl MessageSlot {
         Ok(Self {
             slot: msg.slot,
             parent: msg.parent,
-            status: SlotStatusProto::try_from(msg.status)
-                .map_err(|_| "failed to parse slot status")?
+            status: CommitmentLevelProto::try_from(msg.status)
+                .map_err(|_| "failed to parse commitment level")?
                 .into(),
-            dead_error: msg.dead_error.clone(),
             created_at,
         })
     }
