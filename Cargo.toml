@@ -8,7 +8,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "2.0.18"
+version = "2.1.14"
 authors = ["Bovey Maintainers <maintainers@solana.xyz>"]
 repository = "https://github.com/nabob-labs/solana-grpc"
 homepage = "https://solana.xyz/"
