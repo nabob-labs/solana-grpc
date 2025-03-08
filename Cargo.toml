@@ -8,7 +8,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "2.1.14"
+version = "2.1.11"
 authors = ["Bovey Maintainers <maintainers@solana.xyz>"]
 repository = "https://github.com/nabob-labs/solana-grpc"
 homepage = "https://solana.xyz/"
@@ -20,12 +20,12 @@ solana-grpc-proto = { path = "crates/proto" }
 solana-grpc-geyser = { path = "crates/geyser" }
 solana-grpc-client = { path = "crates/client" }
 
-agave-geyser-plugin-interface = "=2.1.14"
-solana-account-decoder = "=2.1.14"
-solana-logger = "=2.1.14"
-solana-sdk = "=2.1.14"
-solana-storage-proto = "=2.1.14"
-solana-transaction-status = "=2.1.14"
+agave-geyser-plugin-interface = "=2.1.11"
+solana-account-decoder = "=2.1.11"
+solana-logger = "=2.1.11"
+solana-sdk = "=2.1.11"
+solana-storage-proto = "=2.1.11"
+solana-transaction-status = "=2.1.11"
 spl-token-2022 = "6.0.0"
 
 affinity = "0.1.2"
@@ -70,7 +70,6 @@ tonic = "0.12.1"
 tonic-build = "0.12.1"
 tonic-health = "0.12.1"
 vergen = "9.0.0"
-
 [workspace.lints.clippy]
 clone_on_ref_ptr = "deny"
 missing_const_for_fn = "deny"
