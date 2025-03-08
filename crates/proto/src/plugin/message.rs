@@ -9,7 +9,7 @@ use {
         },
         solana::storage::confirmed_block,
     },
-    solana_geyser_plugin_interface::geyser_plugin_interface::{
+    agave_geyser_plugin_interface::geyser_plugin_interface::{
         ReplicaAccountInfoV3, ReplicaBlockInfoV4, ReplicaEntryInfoV2, ReplicaTransactionInfoV2,
         SlotStatus as GeyserSlotStatus,
     },

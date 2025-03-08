@@ -8,7 +8,7 @@ license.workspace = true
 edition.workspace = true
 
 [dependencies]
-solana-geyser-plugin-interface = { workspace = true, optional = true }
+agave-geyser-plugin-interface = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
 bincode = { workspace = true, optional = true }
 bs58 = { workspace = true, optional = true }
@@ -42,11 +42,11 @@ convert = [
     "dep:bincode",
     "dep:solana-account-decoder",
     "dep:solana-sdk",
-    "dep:solana-transaction-status"
+    "dep:solana-transaction-status",
 ]
 plugin = [
     "convert",
-    "dep:solana-geyser-plugin-interface",
+    "dep:agave-geyser-plugin-interface",
     "dep:base64",
     "dep:bs58",
     "dep:bytes",
@@ -54,7 +54,7 @@ plugin = [
     "dep:smallvec",
     "dep:spl-token-2022",
     "dep:thiserror",
-    "dep:tonic"
+    "dep:tonic",
 ]
 plugin-bench = ["plugin", "dep:prost_011", "dep:solana-storage-proto"]
 tonic = ["dep:tonic"]
