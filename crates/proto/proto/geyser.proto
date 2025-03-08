@@ -1,5 +1,6 @@
 syntax = "proto3";
 
+import "google/protobuf/timestamp.proto";
 import public "solana-storage.proto";
 
 package geyser;
@@ -20,6 +21,16 @@ enum CommitmentLevel {
   FINALIZED = 2;
 }
 
+enum SlotStatus {
+  SLOT_PROCESSED = 0;
+  SLOT_CONFIRMED = 1;
+  SLOT_FINALIZED = 2;
+  SLOT_FIRST_SHRED_RECEIVED = 3;
+  SLOT_COMPLETED = 4;
+  SLOT_CREATED_BANK = 5;
+  SLOT_DEAD = 6;
+}
+
 message SubscribeRequest {
   map<string, SubscribeRequestFilterAccounts> accounts = 1;
   map<string, SubscribeRequestFilterSlots> slots = 2;
@@ -31,12 +42,14 @@ message SubscribeRequest {
   optional CommitmentLevel commitment = 6;
   repeated SubscribeRequestAccountsDataSlice accounts_data_slice = 7;
   optional SubscribeRequestPing ping = 9;
+  optional uint64 from_slot = 11;
 }
 
 message SubscribeRequestFilterAccounts {
   repeated string account = 2;
   repeated string owner = 3;
   repeated SubscribeRequestFilterAccountsFilter filters = 4;
+  optional bool nonempty_txn_signature = 5;
 }
 
 message SubscribeRequestFilterAccountsFilter {
@@ -44,6 +57,7 @@ message SubscribeRequestFilterAccountsFilter {
     SubscribeRequestFilterAccountsFilterMemcmp memcmp = 1;
     uint64 datasize = 2;
     bool token_account_state = 3;
+    SubscribeRequestFilterAccountsFilterLamports lamports = 4;
   }
 }
 
@@ -56,8 +70,18 @@ message SubscribeRequestFilterAccountsFilterMemcmp {
   }
 }
 
+message SubscribeRequestFilterAccountsFilterLamports {
+  oneof cmp {
+    uint64 eq = 1;
+    uint64 ne = 2;
+    uint64 lt = 3;
+    uint64 gt = 4;
+  }
+}
+
 message SubscribeRequestFilterSlots {
   optional bool filter_by_commitment = 1;
+  optional bool interslot_updates = 2;
 }
 
 message SubscribeRequestFilterTransactions {
@@ -102,6 +126,7 @@ message SubscribeUpdate {
     SubscribeUpdateBlockMeta block_meta = 7;
     SubscribeUpdateEntry entry = 8;
   }
+  google.protobuf.Timestamp created_at = 11;
 }
 
 message SubscribeUpdateAccount {
@@ -124,7 +149,8 @@ message SubscribeUpdateAccountInfo {
 message SubscribeUpdateSlot {
   uint64 slot = 1;
   optional uint64 parent = 2;
-  CommitmentLevel status = 3;
+  SlotStatus status = 3;
+  optional string dead_error = 4;
 }
 
 message SubscribeUpdateTransaction {
