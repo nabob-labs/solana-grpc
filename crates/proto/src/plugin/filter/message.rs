@@ -26,7 +26,7 @@ use {
     },
     prost_types::Timestamp,
     smallvec::SmallVec,
-    solana_sdk::signature::Signature,
+    solana_signature::Signature,
     std::{
         collections::HashSet,
         ops::{Deref, DerefMut},
@@ -36,7 +36,7 @@ use {
 };
 
 #[inline]
-pub fn prost_field_encoded_len(tag: u32, len: usize) -> usize {
+pub const fn prost_field_encoded_len(tag: u32, len: usize) -> usize {
     key_len(tag) + encoded_len_varint(len as u64) + len
 }
 
@@ -48,7 +48,7 @@ fn prost_bytes_encode_raw(tag: u32, value: &[u8], buf: &mut impl BufMut) {
 }
 
 #[inline]
-pub fn prost_bytes_encoded_len(tag: u32, value: &[u8]) -> usize {
+pub const fn prost_bytes_encoded_len(tag: u32, value: &[u8]) -> usize {
     prost_field_encoded_len(tag, value.len())
 }
 
@@ -994,14 +994,12 @@ pub mod tests {
         prost::Message as _,
         prost_011::Message as _,
         prost_types::Timestamp,
-        solana_sdk::{
-            hash::Hash,
-            message::SimpleAddressLoader,
-            pubkey::Pubkey,
-            signature::Signature,
-            transaction::{MessageHash, SanitizedTransaction},
-        },
+        solana_hash::Hash,
+        solana_message::SimpleAddressLoader,
+        solana_pubkey::Pubkey,
+        solana_signature::Signature,
         solana_storage_proto::convert::generated,
+        solana_transaction::sanitized::{MessageHash, SanitizedTransaction},
         solana_transaction_status::{ConfirmedBlock, TransactionWithStatusMeta},
         std::{
             collections::{HashMap, HashSet},
