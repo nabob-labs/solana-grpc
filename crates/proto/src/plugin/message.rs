@@ -14,12 +14,10 @@ use {
         SlotStatus as GeyserSlotStatus,
     },
     prost_types::Timestamp,
-    solana_sdk::{
-        clock::Slot,
-        hash::{Hash, HASH_BYTES},
-        pubkey::Pubkey,
-        signature::Signature,
-    },
+    solana_clock::Slot,
+    solana_hash::{Hash, HASH_BYTES},
+    solana_pubkey::Pubkey,
+    solana_signature::Signature,
     std::{
         collections::HashSet,
         ops::{Deref, DerefMut},
@@ -387,7 +385,7 @@ impl MessageEntry {
             slot: info.slot,
             index: info.index,
             num_hashes: info.num_hashes,
-            hash: Hash::new(info.hash),
+            hash: Hash::new_from_array(<[u8; HASH_BYTES]>::try_from(info.hash).unwrap()),
             executed_transaction_count: info.executed_transaction_count,
             starting_transaction_index: info
                 .starting_transaction_index

@@ -20,7 +20,7 @@ use {
         GetBlockHeightResponse, GetLatestBlockhashRequest, GetLatestBlockhashResponse,
         GetSlotRequest, GetSlotResponse, GetVersionRequest, GetVersionResponse,
         IsBlockhashValidRequest, IsBlockhashValidResponse, PingRequest, PongResponse,
-        SubscribeRequest, SubscribeUpdate,
+        SubscribeReplayInfoRequest, SubscribeReplayInfoResponse, SubscribeRequest, SubscribeUpdate,
     },
 };
 
@@ -137,6 +137,15 @@ impl<F: Interceptor> GeyserGrpcClient<F> {
     }
 
     // RPC calls
+    pub async fn subscribe_replay_info(
+        &mut self,
+    ) -> GeyserGrpcClientResult<SubscribeReplayInfoResponse> {
+        let message = SubscribeReplayInfoRequest {};
+        let request = tonic::Request::new(message);
+        let response = self.geyser.subscribe_replay_info(request).await?;
+        Ok(response.into_inner())
+    }
+
     pub async fn ping(&mut self, count: i32) -> GeyserGrpcClientResult<PongResponse> {
         let message = PingRequest { count };
         let request = tonic::Request::new(message);
@@ -420,7 +429,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_channel_https_success() {
-        let endpoint = "https://ams17.rpcpool.com:443";
+        let endpoint = "https://ams17.nabobsolrpc.com:443";
         let x_token = "1000000000000000000000000007";
 
         let res = GeyserGrpcClient::build_from_shared(endpoint);
