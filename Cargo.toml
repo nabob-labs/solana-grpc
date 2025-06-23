@@ -8,7 +8,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "2.2.16"
+version = "2.2.17"
 authors = ["Bovey Maintainers <maintainers@solana.xyz>"]
 repository = "https://github.com/nabob-labs/solana-grpc"
 homepage = "https://solana.xyz/"
@@ -16,15 +16,16 @@ license = "Apache-2.0"
 edition = "2021"
 
 [workspace.dependencies]
-solana-grpc-proto = { path = "crates/proto", default-features = false, version = "2.2.16" }
-solana-grpc-geyser = { path = "crates/geyser", version = "2.2.16" }
-solana-grpc-client = { path = "crates/client", version = "2.2.16" }
+solana-grpc-proto = { path = "crates/proto", default-features = false, version = "2.2.17" }
+solana-grpc-geyser = { path = "crates/geyser", version = "2.2.17" }
+solana-grpc-client = { path = "crates/client", version = "2.2.17" }
 
-agave-geyser-plugin-interface = "=2.2.16"
-solana-transaction-status = "=2.2.16"
-solana-account-decoder = "=2.2.16"
-solana-storage-proto = "=2.2.16"
-solana-transaction-context = "=2.2.16"
+agave-geyser-plugin-interface = "=2.2.17"
+solana-transaction-status = "=2.2.17"
+solana-account-decoder = "=2.2.17"
+solana-storage-proto = "=2.2.17"
+solana-transaction-context = "=2.2.17"
+
 solana-account = "2.2.1"
 solana-clock = "2.2.2"
 solana-hash = "2.3.0"
@@ -91,8 +92,8 @@ lto = true
 codegen-units = 1
 
 [patch.crates-io]
-agave-geyser-plugin-interface = { git = "https://github.com/nabob-labs/solana-spe.git", tag = "v2.2.16", version = "2.2.16" }
-solana-account-decoder = { git = "https://github.com/nabob-labs/solana-spe.git", tag = "v2.2.16", version = "2.2.16" }
-solana-storage-proto = { git = "https://github.com/nabob-labs/solana-spe.git", tag = "v2.2.16", version = "2.2.16" }
-solana-transaction-status = { git = "https://github.com/nabob-labs/solana-spe.git", tag = "v2.2.16", version = "2.2.16" }
-solana-transaction-context = { git = "https://github.com/nabob-labs/solana-spe.git", tag = "v2.2.16", version = "2.2.16" }
+agave-geyser-plugin-interface = { git = "https://github.com/nabob-labs/solana-spe.git", tag = "v2.2.17", version = "2.2.17" }
+solana-account-decoder = { git = "https://github.com/nabob-labs/solana-spe.git", tag = "v2.2.17", version = "2.2.17" }
+solana-storage-proto = { git = "https://github.com/nabob-labs/solana-spe.git", tag = "v2.2.17", version = "2.2.17" }
+solana-transaction-status = { git = "https://github.com/nabob-labs/solana-spe.git", tag = "v2.2.17", version = "2.2.17" }
+solana-transaction-context = { git = "https://github.com/nabob-labs/solana-spe.git", tag = "v2.2.17", version = "2.2.17" }
