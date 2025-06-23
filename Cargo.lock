@@ -77,8 +77,8 @@ dependencies = [
 
 [[package]]
 name = "agave-feature-set"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 dependencies = [
  "ahash",
  "solana-epoch-schedule",
@@ -89,8 +89,8 @@ dependencies = [
 
 [[package]]
 name = "agave-geyser-plugin-interface"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 dependencies = [
  "log",
  "solana-clock",
@@ -102,8 +102,8 @@ dependencies = [
 
 [[package]]
 name = "agave-precompiles"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 dependencies = [
  "agave-feature-set",
  "bincode",
@@ -124,8 +124,8 @@ dependencies = [
 
 [[package]]
 name = "agave-reserved-account-keys"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 dependencies = [
  "agave-feature-set",
  "lazy_static",
@@ -3118,8 +3118,8 @@ dependencies = [
 
 [[package]]
 name = "solana-account-decoder"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 dependencies = [
  "Inflector",
  "base64 0.22.1",
@@ -3156,8 +3156,8 @@ dependencies = [
 
 [[package]]
 name = "solana-account-decoder-client-types"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 dependencies = [
  "base64 0.22.1",
  "bs58",
@@ -3273,8 +3273,8 @@ checksum = "ac49c4dde3edfa832de1697e9bcdb7c3b3f7cb7a1981b7c62526c8bb6700fb73"
 
 [[package]]
 name = "solana-compute-budget"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 dependencies = [
  "solana-fee-structure",
  "solana-program-entrypoint",
@@ -3282,8 +3282,8 @@ dependencies = [
 
 [[package]]
 name = "solana-config-program"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 dependencies = [
  "bincode",
  "chrono",
@@ -3476,7 +3476,7 @@ dependencies = [
 
 [[package]]
 name = "solana-grpc-client"
-version = "2.2.16"
+version = "2.2.17"
 dependencies = [
  "bytes",
  "futures",
@@ -3489,7 +3489,7 @@ dependencies = [
 
 [[package]]
 name = "solana-grpc-geyser"
-version = "2.2.16"
+version = "2.2.17"
 dependencies = [
  "affinity",
  "agave-geyser-plugin-interface",
@@ -3530,7 +3530,7 @@ dependencies = [
 
 [[package]]
 name = "solana-grpc-proto"
-version = "2.2.16"
+version = "2.2.17"
 dependencies = [
  "agave-geyser-plugin-interface",
  "anyhow",
@@ -3720,8 +3720,8 @@ dependencies = [
 
 [[package]]
 name = "solana-log-collector"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 dependencies = [
  "log",
 ]
@@ -3741,8 +3741,8 @@ dependencies = [
 
 [[package]]
 name = "solana-measure"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 
 [[package]]
 name = "solana-message"
@@ -3949,8 +3949,8 @@ dependencies = [
 
 [[package]]
 name = "solana-program-runtime"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 dependencies = [
  "agave-feature-set",
  "agave-precompiles",
@@ -4276,8 +4276,8 @@ dependencies = [
 
 [[package]]
 name = "solana-storage-proto"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 dependencies = [
  "bincode",
  "bs58",
@@ -4363,8 +4363,8 @@ dependencies = [
 
 [[package]]
 name = "solana-timings"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 dependencies = [
  "eager",
  "enum-iterator",
@@ -4398,8 +4398,8 @@ dependencies = [
 
 [[package]]
 name = "solana-transaction-context"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 dependencies = [
  "bincode",
  "serde",
@@ -4409,7 +4409,6 @@ dependencies = [
  "solana-instructions-sysvar",
  "solana-pubkey",
  "solana-rent",
- "solana-signature",
 ]
 
 [[package]]
@@ -4426,8 +4425,8 @@ dependencies = [
 
 [[package]]
 name = "solana-transaction-status"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 dependencies = [
  "Inflector",
  "agave-reserved-account-keys",
@@ -4467,8 +4466,8 @@ dependencies = [
 
 [[package]]
 name = "solana-transaction-status-client-types"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -4489,8 +4488,8 @@ dependencies = [
 
 [[package]]
 name = "solana-type-overrides"
-version = "2.2.16"
-source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.16#b115eb01986fe45b51584ee1d1626512787a2ee9"
+version = "2.2.17"
+source = "git+https://github.com/nabob-labs/solana-spe.git?tag=v2.2.17#86440b152079c73d7aef0d5c43cc2b700e4cd7ba"
 dependencies = [
  "lazy_static",
  "rand 0.8.5",
